@@ -1,4 +1,4 @@
-const CACHE = 'rhythmos-v1';
+const CACHE = 'rhythmos-v2';
 const SHELL = ['/', '/index.html'];
 
 self.addEventListener('install', e => {
@@ -17,7 +17,6 @@ self.addEventListener('activate', e => {
 
 self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
-  // Never intercept Firebase, Google Maps, or CDN requests
   if (
     url.hostname.includes('firebase') ||
     url.hostname.includes('google') ||
@@ -25,9 +24,8 @@ self.addEventListener('fetch', e => {
     url.hostname.includes('cloudflare') ||
     url.hostname.includes('fonts')
   ) {
-    return; // Let browser handle it normally
+    return;
   }
-  // Cache-first for our own shell
   e.respondWith(
     caches.match(e.request).then(cached => cached || fetch(e.request))
   );
