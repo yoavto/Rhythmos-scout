@@ -292,7 +292,7 @@ async function doLogout(){await auth.signOut();}
 function authMsg(c){return({'auth/invalid-email':'אימייל לא תקין','auth/user-not-found':'משתמש לא נמצא','auth/wrong-password':'סיסמה שגויה','auth/invalid-credential':'אימייל או סיסמה שגויים','auth/email-already-in-use':'אימייל כבר רשום','auth/weak-password':'סיסמה חלשה מדי'})[c]||'שגיאת התחברות';}
 function checkMapsKey(){const k=localStorage.getItem('r_maps_key');if(k)loadMaps(k);else document.getElementById('maps-gate').style.display='flex';}
 function saveMapsKey(){const k=document.getElementById('maps-key-input').value.trim();if(!k||k.length<20){showToast('נא להזין מפתח תקין');return;}localStorage.setItem('r_maps_key',k);document.getElementById('maps-gate').style.display='none';loadMaps(k);}
-function loadMaps(k){if(window.google?.maps){initApp();return;}const s=document.createElement('script');s.src=`https://maps.googleapis.com/maps/api/js?key=${k}&loading=async&callback=initApp`;s.async=true;s.onerror=()=>{localStorage.removeItem('r_maps_key');document.getElementById('maps-gate').style.display='flex';showToast('שגיאה במפתח');};document.head.appendChild(s);}
+function loadMaps(k){if(window.google?.maps){initApp();return;}const s=document.createElement('script');s.src=`https://maps.googleapis.com/maps/api/js?key=${k}&loading=async&callback=initApp`;s.async=true;s.onerror=()=>{document.getElementById('maps-gate').style.display='flex';showToast('שגיאה במפתח - בדוק מפתח ו-API');};document.head.appendChild(s);}
 window.initApp=async function(){await loadInsects();await loadTraps();showV('map');setTimeout(initMap,150);};
 function initMap(){
   document.getElementById('map-wrap').style.top='0';
@@ -395,6 +395,32 @@ document.getElementById('maps-key-input')?.addEventListener('keydown',e=>{if(e.k
 </script>
 
 <script>
+
+// ── Android back button: double-tap to exit ───────────────────────
+let backPressedOnce = false;
+let backTimer = null;
+const MAIN_VIEWS = ['map','traps','insects','export'];
+
+function handleAndroidBack() {
+  if (!MAIN_VIEWS.includes(curView)) {
+    goBack();
+    history.pushState({pwa:true}, '');
+    return;
+  }
+  if (backPressedOnce) {
+    clearTimeout(backTimer);
+    return; // allow browser to close/go back
+  }
+  backPressedOnce = true;
+  showToast('לחץ שוב לצאת');
+  history.pushState({pwa:true}, '');
+  backTimer = setTimeout(() => { backPressedOnce = false; }, 2000);
+}
+
+window.addEventListener('popstate', handleAndroidBack);
+window.addEventListener('load', () => { history.pushState({pwa:true}, ''); });
+
+
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js')
