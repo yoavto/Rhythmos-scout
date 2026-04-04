@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
-  <title>ריתמוס - פיקוח מזיקים - </title>
+  <title>ריתמוס - פיקוח מזיקים</title>
   <link rel="icon" href="/favicon.png"/>
   <link rel="icon" href="/favicon.png"/>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -467,11 +467,10 @@ window.addEventListener('popstate', handleAndroidBack);
 window.addEventListener('load', () => { history.pushState({pwa:true}, ''); });
 
 
+// Unregister any existing service workers so cache never blocks updates
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js')
-      .then(() => console.log('SW registered'))
-      .catch(e => console.log('SW error', e));
+  navigator.serviceWorker.getRegistrations().then(regs => {
+    regs.forEach(r => r.unregister());
   });
 }
 </script>
