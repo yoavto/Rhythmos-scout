@@ -229,22 +229,27 @@
 </div>
 <div class="view" id="view-traps">
   <div id="traps-filter-bar" style="background:var(--white);border-bottom:1px solid var(--border);padding:8px 12px;flex-shrink:0;">
-    <div style="font-size:11px;color:rgba(69,71,74,0.6);margin-bottom:5px;text-align:right;">סינון מלכודות</div>
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;">
-      <div style="display:flex;flex-direction:column;gap:2px;">
-        <label style="font-size:10px;color:rgba(69,71,74,0.6);text-align:right;">מזיק</label>
-        <select id="tf-pest" onchange="applyTrapFilter()" style="font-size:12px;padding:5px 4px;border-radius:6px;border:0.5px solid var(--border);background:rgb(235,235,236);color:var(--text);font-family:Arial;direction:rtl;"><option value="">הכל</option></select>
+      <div style="position:relative;">
+        <button onclick="toggleDropdown('dd-pest')" id="btn-pest" style="width:100%;font-size:12px;padding:5px 6px;border-radius:6px;border:0.5px solid var(--border);background:rgb(235,235,236);color:var(--text);font-family:Arial;cursor:pointer;text-align:right;display:flex;justify-content:space-between;align-items:center;">
+          <span id="lbl-pest">מזיק</span><span style="font-size:9px;opacity:0.5;">▼</span>
+        </button>
+        <div id="dd-pest" style="display:none;position:absolute;top:calc(100% + 4px);right:0;left:0;background:white;border:1px solid var(--border);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.12);z-index:500;max-height:200px;overflow-y:auto;padding:4px 0;"></div>
       </div>
-      <div style="display:flex;flex-direction:column;gap:2px;">
-        <label style="font-size:10px;color:rgba(69,71,74,0.6);text-align:right;">גידול</label>
-        <select id="tf-crop-f" onchange="applyTrapFilter()" style="font-size:12px;padding:5px 4px;border-radius:6px;border:0.5px solid var(--border);background:rgb(235,235,236);color:var(--text);font-family:Arial;direction:rtl;"><option value="">הכל</option></select>
+      <div style="position:relative;">
+        <button onclick="toggleDropdown('dd-crop')" id="btn-crop" style="width:100%;font-size:12px;padding:5px 6px;border-radius:6px;border:0.5px solid var(--border);background:rgb(235,235,236);color:var(--text);font-family:Arial;cursor:pointer;text-align:right;display:flex;justify-content:space-between;align-items:center;">
+          <span id="lbl-crop">גידול</span><span style="font-size:9px;opacity:0.5;">▼</span>
+        </button>
+        <div id="dd-crop" style="display:none;position:absolute;top:calc(100% + 4px);right:0;left:0;background:white;border:1px solid var(--border);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.12);z-index:500;max-height:200px;overflow-y:auto;padding:4px 0;"></div>
       </div>
-      <div style="display:flex;flex-direction:column;gap:2px;">
-        <label style="font-size:10px;color:rgba(69,71,74,0.6);text-align:right;">חלקה</label>
-        <select id="tf-plot-f" onchange="applyTrapFilter()" style="font-size:12px;padding:5px 4px;border-radius:6px;border:0.5px solid var(--border);background:rgb(235,235,236);color:var(--text);font-family:Arial;direction:rtl;"><option value="">הכל</option></select>
+      <div style="position:relative;">
+        <button onclick="toggleDropdown('dd-plot')" id="btn-plot" style="width:100%;font-size:12px;padding:5px 6px;border-radius:6px;border:0.5px solid var(--border);background:rgb(235,235,236);color:var(--text);font-family:Arial;cursor:pointer;text-align:right;display:flex;justify-content:space-between;align-items:center;">
+          <span id="lbl-plot">חלקה</span><span style="font-size:9px;opacity:0.5;">▼</span>
+        </button>
+        <div id="dd-plot" style="display:none;position:absolute;top:calc(100% + 4px);right:0;left:0;background:white;border:1px solid var(--border);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.12);z-index:500;max-height:200px;overflow-y:auto;padding:4px 0;"></div>
       </div>
     </div>
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:5px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;">
       <button onclick="clearTrapFilter()" style="font-size:11px;color:var(--red);background:none;border:none;cursor:pointer;padding:0;font-family:Arial;">נקה סינון ✕</button>
       <span id="trap-count" style="font-size:11px;color:rgba(69,71,74,0.6);"></span>
     </div>
@@ -430,34 +435,77 @@ function renderTraps(){
   const el=document.getElementById('traps-list');
   const fab='<div class="fab-inline"><button class="fab" onclick="openTrapForm(null)">+</button></div>';
   if(!traps.length){el.innerHTML='<div class="empty"><div class="eico">📍</div><p>אין מלכודות.<br>לחץ + להוספה.</p></div>'+fab;return;}
-
-  // Populate filter dropdowns (only unique values)
-  const pestSel=document.getElementById('tf-pest');
-  const cropSel=document.getElementById('tf-crop-f');
-  const plotSel=document.getElementById('tf-plot-f');
-  if(pestSel){
-    const curPest=pestSel.value, curCrop=cropSel.value, curPlot=plotSel.value;
-    const pests=[...new Set(traps.map(t=>t.insectName).filter(Boolean))].sort();
-    const crops=[...new Set(traps.map(t=>t.crop).filter(Boolean))].sort();
-    const plots=[...new Set(traps.map(t=>t.plot).filter(Boolean))].sort();
-    pestSel.innerHTML='<option value="">הכל</option>'+pests.map(v=>`<option value="${v}">${v}</option>`).join('');
-    cropSel.innerHTML='<option value="">הכל</option>'+crops.map(v=>`<option value="${v}">${v}</option>`).join('');
-    plotSel.innerHTML='<option value="">הכל</option>'+plots.map(v=>`<option value="${v}">${v}</option>`).join('');
-    pestSel.value=curPest; cropSel.value=curCrop; plotSel.value=curPlot;
-  }
+  // Build dropdown options (preserving selections)
+  buildFilterDropdown('dd-pest','lbl-pest','מזיק',
+    [...new Set(traps.map(t=>t.insectName).filter(Boolean))].sort());
+  buildFilterDropdown('dd-crop','lbl-crop','גידול',
+    [...new Set(traps.map(t=>t.crop).filter(Boolean))].sort());
+  buildFilterDropdown('dd-plot','lbl-plot','חלקה',
+    [...new Set(traps.map(t=>t.plot).filter(Boolean))].sort());
   applyTrapFilter();
 }
+
+// State: sets of selected values per filter
+const trapSel={pest:new Set(),crop:new Set(),plot:new Set()};
+
+function buildFilterDropdown(ddId,lblId,placeholder,options){
+  const dd=document.getElementById(ddId);
+  if(!dd)return;
+  const key=ddId.replace('dd-','');
+  dd.innerHTML=options.map(v=>{
+    const checked=trapSel[key].has(v);
+    return `<label style="display:flex;align-items:center;gap:8px;padding:6px 12px;cursor:pointer;font-size:12px;font-family:Arial;color:rgb(69,71,74);direction:rtl;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+      <input type="checkbox" value="${v}" ${checked?'checked':''} onchange="onFilterCheck('${key}',this)" style="accent-color:var(--red);flex-shrink:0;"/>
+      <span style="overflow:hidden;text-overflow:ellipsis;">${v}</span>
+    </label>`;
+  }).join('');
+  updateFilterBtn(key,placeholder);
+}
+
+function onFilterCheck(key,cb){
+  if(cb.checked) trapSel[key].add(cb.value);
+  else trapSel[key].delete(cb.value);
+  const lbl=document.getElementById('lbl-'+key);
+  const placeholder={pest:'מזיק',crop:'גידול',plot:'חלקה'}[key];
+  updateFilterBtn(key,placeholder);
+  applyTrapFilter();
+}
+
+function updateFilterBtn(key,placeholder){
+  const lbl=document.getElementById('lbl-'+key);
+  const btn=document.getElementById('btn-'+key);
+  if(!lbl)return;
+  const n=trapSel[key].size;
+  if(n===0){lbl.textContent=placeholder;btn.style.background='rgb(235,235,236)';btn.style.color='rgb(69,71,74)';}
+  else if(n===1){lbl.textContent=[...trapSel[key]][0];btn.style.background='var(--red)';btn.style.color='white';}
+  else{lbl.textContent=placeholder+' ('+n+')';btn.style.background='var(--red)';btn.style.color='white';}
+}
+
+function toggleDropdown(id){
+  ['dd-pest','dd-crop','dd-plot'].forEach(d=>{
+    if(d!==id) document.getElementById(d).style.display='none';
+  });
+  const dd=document.getElementById(id);
+  dd.style.display=dd.style.display==='none'?'block':'none';
+}
+
+// Close dropdowns when tapping outside
+document.addEventListener('click',e=>{
+  if(!e.target.closest('#traps-filter-bar')){
+    ['dd-pest','dd-crop','dd-plot'].forEach(d=>{
+      const el=document.getElementById(d);
+      if(el) el.style.display='none';
+    });
+  }
+});
 
 function applyTrapFilter(){
   const el=document.getElementById('traps-list');
   const fab='<div class="fab-inline"><button class="fab" onclick="openTrapForm(null)">+</button></div>';
-  const fPest=document.getElementById('tf-pest')?.value||'';
-  const fCrop=document.getElementById('tf-crop-f')?.value||'';
-  const fPlot=document.getElementById('tf-plot-f')?.value||'';
   const filtered=traps.filter(t=>
-    (!fPest||t.insectName===fPest)&&
-    (!fCrop||t.crop===fCrop)&&
-    (!fPlot||t.plot===fPlot)
+    (!trapSel.pest.size||trapSel.pest.has(t.insectName))&&
+    (!trapSel.crop.size||trapSel.crop.has(t.crop))&&
+    (!trapSel.plot.size||trapSel.plot.has(t.plot))
   );
   const countEl=document.getElementById('trap-count');
   if(countEl) countEl.textContent='מציג '+filtered.length+' מתוך '+traps.length;
@@ -473,10 +521,13 @@ function applyTrapFilter(){
 }
 
 function clearTrapFilter(){
-  const p=document.getElementById('tf-pest');
-  const c=document.getElementById('tf-crop-f');
-  const pl=document.getElementById('tf-plot-f');
-  if(p)p.value=''; if(c)c.value=''; if(pl)pl.value='';
+  trapSel.pest.clear(); trapSel.crop.clear(); trapSel.plot.clear();
+  ['pest','crop','plot'].forEach(k=>{
+    const placeholder={pest:'מזיק',crop:'גידול',plot:'חלקה'}[k];
+    updateFilterBtn(k,placeholder);
+    const dd=document.getElementById('dd-'+k);
+    if(dd) dd.querySelectorAll('input[type=checkbox]').forEach(cb=>cb.checked=false);
+  });
   applyTrapFilter();
 }
 function openTrapForm(id){selTrapIns=null;document.getElementById('tf-id').value=id||'';document.getElementById('tf-lat').value='';document.getElementById('tf-lng').value='';document.getElementById('gps-disp').textContent='לא נקלט מיקום';['tf-trapnum','tf-traptype','tf-crop','tf-plot','tf-row','tf-tree'].forEach(f=>document.getElementById(f).value='');document.getElementById('tf-phdate').value=di(new Date());document.getElementById('tf-del-wrap').style.display=id?'block':'none';if(id){const t=traps.find(x=>x.id===id);if(t){selTrapIns=t.insectId;document.getElementById('tf-trapnum').value=t.trapNum||'';document.getElementById('tf-traptype').value=t.trapType||'';document.getElementById('tf-crop').value=t.crop||'';document.getElementById('tf-plot').value=t.plot||'';document.getElementById('tf-row').value=t.row||'';document.getElementById('tf-tree').value=t.tree||'';if(t.lat&&t.lng){document.getElementById('tf-lat').value=t.lat;document.getElementById('tf-lng').value=t.lng;document.getElementById('gps-disp').textContent=t.lat.toFixed(6)+', '+t.lng.toFixed(6);}if(t.pheromoneDate)document.getElementById('tf-phdate').value=t.pheromoneDate;}}else captureGPS();renderIChips();showV('trap-form');updateTopBar('trap-form');}
