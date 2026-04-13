@@ -227,7 +227,30 @@
   </div>
   <div class="ffoot"><button class="btn-sec" onclick="navTo('insects')">ביטול</button><button class="btn-sav" onclick="saveInsect()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> שמור</button></div>
 </div>
-<div class="view" id="view-traps"><div class="sc" id="traps-list"></div></div>
+<div class="view" id="view-traps">
+  <div id="traps-filter-bar" style="background:var(--white);border-bottom:1px solid var(--border);padding:8px 12px;flex-shrink:0;">
+    <div style="font-size:11px;color:rgba(69,71,74,0.6);margin-bottom:5px;text-align:right;">סינון מלכודות</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;">
+      <div style="display:flex;flex-direction:column;gap:2px;">
+        <label style="font-size:10px;color:rgba(69,71,74,0.6);text-align:right;">מזיק</label>
+        <select id="tf-pest" onchange="applyTrapFilter()" style="font-size:12px;padding:5px 4px;border-radius:6px;border:0.5px solid var(--border);background:rgb(235,235,236);color:var(--text);font-family:Arial;direction:rtl;"><option value="">הכל</option></select>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:2px;">
+        <label style="font-size:10px;color:rgba(69,71,74,0.6);text-align:right;">גידול</label>
+        <select id="tf-crop-f" onchange="applyTrapFilter()" style="font-size:12px;padding:5px 4px;border-radius:6px;border:0.5px solid var(--border);background:rgb(235,235,236);color:var(--text);font-family:Arial;direction:rtl;"><option value="">הכל</option></select>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:2px;">
+        <label style="font-size:10px;color:rgba(69,71,74,0.6);text-align:right;">חלקה</label>
+        <select id="tf-plot-f" onchange="applyTrapFilter()" style="font-size:12px;padding:5px 4px;border-radius:6px;border:0.5px solid var(--border);background:rgb(235,235,236);color:var(--text);font-family:Arial;direction:rtl;"><option value="">הכל</option></select>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:5px;">
+      <button onclick="clearTrapFilter()" style="font-size:11px;color:var(--red);background:none;border:none;cursor:pointer;padding:0;font-family:Arial;">נקה סינון ✕</button>
+      <span id="trap-count" style="font-size:11px;color:rgba(69,71,74,0.6);"></span>
+    </div>
+  </div>
+  <div class="sc" id="traps-list"></div>
+</div>
 <div class="view" id="view-trap-form">
   <div class="fv"><input type="hidden" id="tf-id"/>
     <div class="fs"><div class="fst">מיקום מלכודת</div>
@@ -403,7 +426,59 @@ function rmDynF(i){dynFields.splice(i,1);renderDynF();}
 async function saveInsect(){const name=document.getElementById('if-name').value.trim();if(!name){showToast('נא להזין שם מזיק');return;}const fields=dynFields.filter(f=>f.label.trim());if(!fields.length){showToast('נא להוסיף לפחות שדה ממצא אחד');return;}const id=document.getElementById('if-id').value;const data={name,color:selColor,fields:fields.map(f=>({label:f.label.trim(),type:'number'})),updatedAt:firebase.firestore.FieldValue.serverTimestamp()};try{if(id)await db.collection('insects').doc(id).update(data);else{data.createdAt=firebase.firestore.FieldValue.serverTimestamp();await db.collection('insects').add(data);}await loadInsects();renderMarkers();showToast('המזיק נשמר');navTo('insects');}catch(e){showToast('שגיאה: '+e.message);}}
 function confirmDelInsect(){const id=document.getElementById('if-id').value;const ins=insects.find(i=>i.id===id);showConfirm('מחיקת מזיק',`האם למחוק את "${ins?.name}"?`,async()=>{await db.collection('insects').doc(id).delete();await loadInsects();renderInsects();renderMarkers();showToast('המזיק נמחק');navTo('insects');});}
 async function loadTraps(){const s=await db.collection('traps').orderBy('createdAt').get();traps=s.docs.map(d=>({id:d.id,...d.data()}));}
-function renderTraps(){const el=document.getElementById('traps-list');const fab='<div class="fab-inline"><button class="fab" onclick="openTrapForm(null)">+</button></div>';if(!traps.length){el.innerHTML='<div class="empty"><div class="eico">📍</div><p>אין מלכודות.<br>לחץ + להוספה.</p></div>'+fab;return;}el.innerHTML=traps.map(t=>{const ins=insects.find(i=>i.id===t.insectId);const col=ins?.color||'#8B1A1A';return `<div class="card" onclick="openInspection('${t.id}')" style="border-right-color:${col}"><div class="cdot" style="background:${col}"></div><div class="cb"><div class="ct">${ins?.name||'מזיק לא ידוע'}</div><div class="cs">גידול: ${t.crop||'—'} | חלקה: ${t.plot||'—'} | שורה: ${t.row||'—'} | עץ: ${t.tree||'—'}</div>${t.pheromoneDate?`<div class="cs" style="margin-top:2px">🧪 פרומון: ${fd(t.pheromoneDate)}</div>`:''}</div><div class="ca"><button class="ia" onclick="event.stopPropagation();openTrapForm('${t.id}')">✏️</button></div></div>`;}).join('')+fab;}
+function renderTraps(){
+  const el=document.getElementById('traps-list');
+  const fab='<div class="fab-inline"><button class="fab" onclick="openTrapForm(null)">+</button></div>';
+  if(!traps.length){el.innerHTML='<div class="empty"><div class="eico">📍</div><p>אין מלכודות.<br>לחץ + להוספה.</p></div>'+fab;return;}
+
+  // Populate filter dropdowns (only unique values)
+  const pestSel=document.getElementById('tf-pest');
+  const cropSel=document.getElementById('tf-crop-f');
+  const plotSel=document.getElementById('tf-plot-f');
+  if(pestSel){
+    const curPest=pestSel.value, curCrop=cropSel.value, curPlot=plotSel.value;
+    const pests=[...new Set(traps.map(t=>t.insectName).filter(Boolean))].sort();
+    const crops=[...new Set(traps.map(t=>t.crop).filter(Boolean))].sort();
+    const plots=[...new Set(traps.map(t=>t.plot).filter(Boolean))].sort();
+    pestSel.innerHTML='<option value="">הכל</option>'+pests.map(v=>`<option value="${v}">${v}</option>`).join('');
+    cropSel.innerHTML='<option value="">הכל</option>'+crops.map(v=>`<option value="${v}">${v}</option>`).join('');
+    plotSel.innerHTML='<option value="">הכל</option>'+plots.map(v=>`<option value="${v}">${v}</option>`).join('');
+    pestSel.value=curPest; cropSel.value=curCrop; plotSel.value=curPlot;
+  }
+  applyTrapFilter();
+}
+
+function applyTrapFilter(){
+  const el=document.getElementById('traps-list');
+  const fab='<div class="fab-inline"><button class="fab" onclick="openTrapForm(null)">+</button></div>';
+  const fPest=document.getElementById('tf-pest')?.value||'';
+  const fCrop=document.getElementById('tf-crop-f')?.value||'';
+  const fPlot=document.getElementById('tf-plot-f')?.value||'';
+  const filtered=traps.filter(t=>
+    (!fPest||t.insectName===fPest)&&
+    (!fCrop||t.crop===fCrop)&&
+    (!fPlot||t.plot===fPlot)
+  );
+  const countEl=document.getElementById('trap-count');
+  if(countEl) countEl.textContent='מציג '+filtered.length+' מתוך '+traps.length;
+  if(!filtered.length){
+    el.innerHTML='<div class="empty"><div class="eico">🔍</div><p>אין מלכודות התואמות את הסינון.</p></div>'+fab;
+    return;
+  }
+  el.innerHTML=filtered.map(t=>{
+    const ins=insects.find(i=>i.id===t.insectId);
+    const col=ins?.color||'#8B1A1A';
+    return `<div class="card" onclick="openInspection('${t.id}')" style="border-right-color:${col}"><div class="cdot" style="background:${col}"></div><div class="cb"><div class="ct">${ins?.name||'מזיק לא ידוע'}</div><div class="cs">גידול: ${t.crop||'—'} | חלקה: ${t.plot||'—'}${t.trapNum?' | מלכודת: '+t.trapNum:''}</div>${t.pheromoneDate?`<div class="cs" style="margin-top:2px">🧪 פרומון: ${fd(t.pheromoneDate)}</div>`:''}</div><div class="ca"><button class="ia" onclick="event.stopPropagation();openTrapForm('${t.id}')">✏️</button></div></div>`;
+  }).join('')+fab;
+}
+
+function clearTrapFilter(){
+  const p=document.getElementById('tf-pest');
+  const c=document.getElementById('tf-crop-f');
+  const pl=document.getElementById('tf-plot-f');
+  if(p)p.value=''; if(c)c.value=''; if(pl)pl.value='';
+  applyTrapFilter();
+}
 function openTrapForm(id){selTrapIns=null;document.getElementById('tf-id').value=id||'';document.getElementById('tf-lat').value='';document.getElementById('tf-lng').value='';document.getElementById('gps-disp').textContent='לא נקלט מיקום';['tf-trapnum','tf-traptype','tf-crop','tf-plot','tf-row','tf-tree'].forEach(f=>document.getElementById(f).value='');document.getElementById('tf-phdate').value=di(new Date());document.getElementById('tf-del-wrap').style.display=id?'block':'none';if(id){const t=traps.find(x=>x.id===id);if(t){selTrapIns=t.insectId;document.getElementById('tf-trapnum').value=t.trapNum||'';document.getElementById('tf-traptype').value=t.trapType||'';document.getElementById('tf-crop').value=t.crop||'';document.getElementById('tf-plot').value=t.plot||'';document.getElementById('tf-row').value=t.row||'';document.getElementById('tf-tree').value=t.tree||'';if(t.lat&&t.lng){document.getElementById('tf-lat').value=t.lat;document.getElementById('tf-lng').value=t.lng;document.getElementById('gps-disp').textContent=t.lat.toFixed(6)+', '+t.lng.toFixed(6);}if(t.pheromoneDate)document.getElementById('tf-phdate').value=t.pheromoneDate;}}else captureGPS();renderIChips();showV('trap-form');updateTopBar('trap-form');}
 function renderIChips(){const g=document.getElementById('ichip-grid');if(!insects.length){g.innerHTML='<p style="font-size:13px;color:var(--text-muted)">אין מזיקים מוגדרים. הגדר מזיק תחילה.</p>';return;}g.innerHTML='<div style="display:flex;flex-wrap:wrap;">'+insects.map(i=>{const s=selTrapIns===i.id;return `<div class="ichip" style="border-color:${s?i.color:'var(--border)'};background:${s?i.color:'white'};color:${s?'white':'var(--text)'}" onclick="pickTrapIns('${i.id}')"><span style="width:10px;height:10px;border-radius:50%;background:${s?'white':i.color};flex-shrink:0;display:inline-block;"></span>${i.name}</div>`;}).join('')+'</div>';}
 function pickTrapIns(id){selTrapIns=id;renderIChips();}
