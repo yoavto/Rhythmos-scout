@@ -151,7 +151,7 @@
     #gtb.visible { display:flex; }
     /* Logo absolutely positioned on the right (start in RTL) */
     .gtb-logo-wrap { position:absolute; right:10px; top:50%; transform:translateY(-50%); display:flex; align-items:center; gap:8px; }
-    .gtb-logo { height:auto; width:auto; max-height:28px; max-width:90px; display:block; object-fit:contain; }
+    .gtb-logo { height:auto; width:auto; max-height:28px; max-width:90px; display:block; object-fit:contain; } @media (min-width:600px){ .gtb-logo { max-height:34px; max-width:160px; } }
     /* Exit absolutely on the far left */
     .gtb-exit-wrap { position:absolute; left:10px; top:50%; transform:translateY(-50%); display:flex; align-items:center; gap:6px; }
     /* Back btn inside exit-wrap, hidden by default */
