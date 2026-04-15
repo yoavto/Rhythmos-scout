@@ -68,7 +68,7 @@
     .fin{width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:Arial,sans-serif;color:var(--text);background:var(--cream);outline:none;}
     .fin:focus{border-color:var(--red);}.fin[type="number"]{direction:ltr;text-align:right;}
     .fta{width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:Arial,sans-serif;color:var(--text);background:rgb(235,235,236);outline:none;resize:none;height:80px;}
-    .ffoot{display:flex;gap:12px;padding:12px 16px;background:var(--white);border-top:1px solid var(--border);flex-shrink:0;justify-content:center;align-items:center;}
+    .ffoot{display:flex;gap:10px;padding:12px 16px;background:var(--white);border-top:1px solid var(--border);flex-shrink:0;justify-content:center;align-items:center;flex-wrap:wrap;}
     .btn-sec{padding:10px 23px;background:rgb(69,71,74);color:white;border:none;border-radius:8px;font-size:13px;font-family:Arial,sans-serif;font-weight:600;cursor:pointer;}
     .btn-sav{padding:10px 23px;background:var(--red);color:white;border:none;border-radius:8px;font-size:13px;font-family:Arial,sans-serif;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;}
     .btn-del{padding:12px;background:transparent;color:#c0392b;border:1.5px solid #c0392b;border-radius:10px;font-size:14px;font-family:Arial,sans-serif;font-weight:500;cursor:pointer;width:100%;margin-bottom:16px;}
@@ -180,7 +180,7 @@
     #bottom-bar { height: calc(var(--bar) + env(safe-area-inset-bottom)); }
     .view { top: var(--gtb); bottom: var(--bar); }
 
-      .btn-del{padding:10px 18px;background:white;color:rgb(137,10,10);border:1.5px solid rgb(137,10,10);border-radius:8px;font-size:13px;font-family:Arial,sans-serif;font-weight:600;cursor:pointer;}
+      .btn-del{padding:10px 23px;background:white;color:rgb(137,10,10);border:1.5px solid rgb(137,10,10);border-radius:8px;font-size:13px;font-family:Arial,sans-serif;font-weight:600;cursor:pointer;}
     </style>
 </head>
 <body>
@@ -279,7 +279,7 @@
   </div>
   <div class="ffoot"><button class="btn-sec" onclick="navTo('traps')">ביטול</button><button class="btn-sav" onclick="saveTrap()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> שמור</button></div>
 </div>
-<div class="view" id="view-inspection"><div class="fv" id="insp-content"></div><div class="ffoot"><button class="btn-sec" onclick="navTo('map')">ביטול</button><button id="del-insp-btn" class="btn-del" onclick="deleteInspection()" style="display:none;">מחק</button><button class="btn-sav" onclick="saveInspection()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> שמור</button></div></div>
+<div class="view" id="view-inspection"><div class="fv" id="insp-content"></div><div class="ffoot"><button class="btn-sec" onclick="navTo('map')">ביטול</button><button id="del-insp-btn" class="btn-del" onclick="deleteInspection()" style="display:none;">מחק דיווח</button><button class="btn-sav" onclick="saveInspection()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> שמור</button></div></div>
 <div class="view" id="view-export">
   <div class="sc">
     <div class="fs"><div class="fst">טווח תאריכים</div><div class="dpair"><div class="fr"><label class="frl">מתאריך</label><input class="fin" type="date" id="ex-from"/></div><div class="fr"><label class="frl">עד תאריך</label><input class="fin" type="date" id="ex-to"/></div></div></div>
@@ -610,7 +610,22 @@ function openInspection(trapId, existingId, existingData){
   const ins=insects.find(i=>i.id===trap.insectId);
   curTrapId=trapId;
   curInspectionId=existingId||null;setTimeout(()=>{const db=document.getElementById('del-insp-btn');if(db)db.style.display=curInspectionId?'block':'none';},50);
-  const phDate=trap.pheromoneDate?fd(trap.pheromoneDate):'לא הוזן';document.getElementById('insp-content').innerHTML=`<div class="trap-hdr"><div class="thn">${ins?.name||'מזיק לא ידוע'}</div><div class="thd">גידול: ${trap.crop||'—'} | חלקה: ${trap.plot||'—'} | שורה: ${trap.row||'—'} | עץ: ${trap.tree||'—'}${trap.trapNum?' | מלכודת: '+trap.trapNum:''}</div></div><div class="phbox"><span style="font-size:20px;">🧪</span><div><div style="font-weight:700;font-size:13px;">פרומון אחרון</div><div style="font-size:14px;">${phDate}</div></div></div><div class="fs"><div class="fst">ממצאים</div>${ins?ins.fields.map((f,i)=>`<div class="finrow"><label class="finlbl">${f.label}</label><input class="fininp" type="number" id="fi-${i}" min="0" value="0" inputmode="numeric"/></div>`).join(''):'<p style="font-size:13px;color:var(--text-muted)">מזיק לא מוגדר</p>'}</div><div class="fs"><div class="fst">פרומון</div><label class="chkrow"><input type="checkbox" id="ph-chk" onchange="togglePhDate(this)"/><span class="chklbl">החלפתי פרומון היום</span></label><div id="ph-date-row" style="display:none;margin-top:12px;"><label class="frl">תאריך החלפה</label><input class="fin" type="date" id="ph-new-date" value="${di(new Date())}"/></div></div><div class="fs"><div class="fst">הערות</div><textarea class="fta" id="insp-comments" placeholder="הערות..."></textarea></div>`;showV('inspection');updateTopBar('inspection');}
+  const phDate=trap.pheromoneDate?fd(trap.pheromoneDate):'לא הוזן';document.getElementById('insp-content').innerHTML=`<div class="trap-hdr"><div class="thn">${ins?.name||'מזיק לא ידוע'}</div><div class="thd">גידול: ${trap.crop||'—'} | חלקה: ${trap.plot||'—'} | שורה: ${trap.row||'—'} | עץ: ${trap.tree||'—'}${trap.trapNum?' | מלכודת: '+trap.trapNum:''}</div></div><div class="phbox"><span style="font-size:20px;">🧪</span><div><div style="font-weight:700;font-size:13px;">פרומון אחרון</div><div style="font-size:14px;">${phDate}</div></div></div><div class="fs"><div class="fst">ממצאים</div>${ins?ins.fields.map((f,i)=>`<div class="finrow"><label class="finlbl">${f.label}</label><input class="fininp" type="number" id="fi-${i}" min="0" value="0" inputmode="numeric"/></div>`).join(''):'<p style="font-size:13px;color:var(--text-muted)">מזיק לא מוגדר</p>'}</div><div class="fs"><div class="fst">פרומון</div><label class="chkrow"><input type="checkbox" id="ph-chk" onchange="togglePhDate(this)"/><span class="chklbl">החלפתי פרומון היום</span></label><div id="ph-date-row" style="display:none;margin-top:12px;"><label class="frl">תאריך החלפה</label><input class="fin" type="date" id="ph-new-date" value="${di(new Date())}"/></div></div><div class="fs"><div class="fst">הערות</div><textarea class="fta" id="insp-comments" placeholder="הערות..."></textarea></div>`;showV('inspection');updateTopBar('inspection');
+  // Pre-fill if editing existing record
+  if(existingData){
+    ins.fields.forEach((f,j)=>{
+      const el=document.getElementById('fi-'+j);
+      if(el) el.value=existingData.findings?.[f.label]??0;
+    });
+    if(existingData.pheromoneReplaced){
+      const chk=document.getElementById('ph-chk');
+      if(chk){chk.checked=true;togglePhDate(chk);}
+      const pd=document.getElementById('ph-new-date');
+      if(pd&&existingData.pheromoneReplacedDate) pd.value=existingData.pheromoneReplacedDate;
+    }
+    document.getElementById('insp-comments').value=existingData.comments||'';
+  }
+}
 function togglePhDate(cb){document.getElementById('ph-date-row').style.display=cb.checked?'block':'none';}
 
 async function deleteInspection(){
