@@ -406,7 +406,74 @@ function updateLocationDot(pos){
     locationCircle.setRadius(pos.coords.accuracy);
   }
 }
-function addMarker(trap){if(!map||!trap.lat||!trap.lng)return;const ins=insects.find(i=>i.id===trap.insectId);const col=ins?.color||'#8B1A1A';const m=new google.maps.Marker({position:{lat:trap.lat,lng:trap.lng},map,title:`${ins?.name||'?'} | ${trap.plot||''} שורה ${trap.row||''} עץ ${trap.tree||''}`,icon:{path:'M 0,-16 C -6,-16 -10,-11 -10,-6 C -10,2 0,14 0,14 C 0,14 10,2 10,-6 C 10,-11 6,-16 0,-16 Z',fillColor:col,fillOpacity:0.93,strokeColor:'white',strokeWeight:1.5,scale:1,anchor:new google.maps.Point(0,14)},zIndex:100});m.addListener('click',()=>openInspection(trap.id));trapMarkers[trap.id]=m;}
+
+// ── Map bubble: shows on marker tap ─────────────────────────────────────────
+let activeBubble = null;
+
+function openTrapBubble(trapId, marker) {
+  // Close existing bubble
+  if (activeBubble) { activeBubble.close(); activeBubble = null; }
+
+  const trap = traps.find(t => t.id === trapId);
+  const ins = insects.find(i => i.id === trap?.insectId);
+  if (!trap) return;
+
+  const trapLabel = [
+    trap.crop || '', trap.plot || '',
+    trap.row ? 'שורה ' + trap.row : '',
+    trap.tree ? 'עץ ' + trap.tree : '',
+    trap.trapNum ? 'מלכודת ' + trap.trapNum : ''
+  ].filter(Boolean).join(' | ');
+
+  const infoWindow = new google.maps.InfoWindow({
+    content: `<div dir="rtl" style="font-family:Arial;min-width:180px;padding:4px 2px;">
+      <div style="font-weight:700;font-size:14px;color:#89000a;margin-bottom:4px;">${ins?.name || 'מזיק לא ידוע'}</div>
+      <div style="font-size:11px;color:#666;margin-bottom:10px;">${trapLabel}</div>
+      <div style="display:flex;gap:8px;">
+        <button onclick="closeBubbleAndDo('new','${trapId}')"
+          style="flex:1;padding:7px 6px;background:#89000a;color:white;border:none;border-radius:7px;font-family:Arial;font-size:12px;font-weight:600;cursor:pointer;">
+          ✚ סקר חדש
+        </button>
+        <button onclick="closeBubbleAndDo('last','${trapId}')"
+          style="flex:1;padding:7px 6px;background:white;color:#444;border:1.5px solid #ccc;border-radius:7px;font-family:Arial;font-size:12px;cursor:pointer;">
+          ✏️ דיווח אחרון
+        </button>
+      </div>
+    </div>`,
+    disableAutoPan: false
+  });
+  infoWindow.open(map, marker);
+  activeBubble = infoWindow;
+  // Close on map click
+  google.maps.event.addListenerOnce(map, 'click', () => {
+    infoWindow.close(); activeBubble = null;
+  });
+}
+
+function closeBubbleAndDo(action, trapId) {
+  if (activeBubble) { activeBubble.close(); activeBubble = null; }
+  if (action === 'new') {
+    openInspection(trapId);
+  } else {
+    openLastInspection(trapId);
+  }
+}
+
+async function openLastInspection(trapId) {
+  showToast('טוען דיווח אחרון...');
+  try {
+    const snap = await db.collection('inspections')
+      .where('trapId', '==', trapId)
+      .orderBy('inspectedAt', 'desc')
+      .limit(1)
+      .get();
+    if (snap.empty) { showToast('אין דיווחים קודמים למלכודת זו'); return; }
+    const rec = snap.docs[0];
+    openInspection(trapId, rec.id, rec.data());
+  } catch(e) { showToast('שגיאה בטעינת דיווח: ' + e.message); }
+}
+
+function addMarker(trap){if(!map||!trap.lat||!trap.lng)return;const ins=insects.find(i=>i.id===trap.insectId);const col=ins?.color||'#8B1A1A';const m=new google.maps.Marker({position:{lat:trap.lat,lng:trap.lng},map,title:`${ins?.name||'?'} | ${trap.plot||''} שורה ${trap.row||''} עץ ${trap.tree||''}`,icon:{path:'M 0,-16 C -6,-16 -10,-11 -10,-6 C -10,2 0,14 0,14 C 0,14 10,2 10,-6 C 10,-11 6,-16 0,-16 Z',fillColor:col,fillOpacity:0.93,strokeColor:'white',strokeWeight:1.5,scale:1,anchor:new google.maps.Point(0,14)},zIndex:100});m.addListener('click',()=>openTrapBubble(trap.id,m));trapMarkers[trap.id]=m;}
 function startMapPick(){if(!map){showToast('המפה לא נטענה עדיין');return;}mapPickMode=true;map.setOptions({draggableCursor:'crosshair'});showToast('לחץ על המפה לסימון מיקום המלכודת');navTo('map');}
 function navTo(s){curView=s;showV(s);if(s==='insects')renderInsects();if(s==='traps')renderTraps();if(s==='export')prepExport();if(s==='map'&&map)setTimeout(()=>google.maps.event.trigger(map,'resize'),50);updateTopBar(s);}
 function showV(n){curView=n;document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));const el=document.getElementById('view-'+n);if(el){el.classList.add('active');if(n!=='login'){el.style.top=GTB_H+'px';el.style.bottom=BAR_H+'px';}else{el.style.top='0';el.style.bottom='0';}}updateTopBar(n);}
@@ -536,9 +603,22 @@ function pickTrapIns(id){selTrapIns=id;renderIChips();}
 function captureGPS(){if(!navigator.geolocation){showToast('GPS לא זמין');return;}showToast('קולט מיקום...');navigator.geolocation.getCurrentPosition(p=>{const la=p.coords.latitude,ln=p.coords.longitude;document.getElementById('tf-lat').value=la;document.getElementById('tf-lng').value=ln;document.getElementById('gps-disp').textContent=la.toFixed(6)+', '+ln.toFixed(6);showToast('מיקום נקלט');},()=>showToast('שגיאה בקליטת מיקום'));}
 async function saveTrap(){if(!selTrapIns){showToast('נא לבחור סוג מזיק');return;}const id=document.getElementById('tf-id').value;const la=parseFloat(document.getElementById('tf-lat').value);const ln=parseFloat(document.getElementById('tf-lng').value);const data={insectId:selTrapIns,trapNum:document.getElementById('tf-trapnum').value.trim(),trapType:document.getElementById('tf-traptype').value.trim(),crop:document.getElementById('tf-crop').value.trim(),plot:document.getElementById('tf-plot').value.trim(),row:document.getElementById('tf-row').value.trim(),tree:document.getElementById('tf-tree').value.trim(),pheromoneDate:document.getElementById('tf-phdate').value,updatedAt:firebase.firestore.FieldValue.serverTimestamp()};if(!isNaN(la)&&!isNaN(ln)){data.lat=la;data.lng=ln;}try{if(id)await db.collection('traps').doc(id).update(data);else{data.createdAt=firebase.firestore.FieldValue.serverTimestamp();await db.collection('traps').add(data);}await loadTraps();renderMarkers();showToast('המלכודת נשמרה');navTo('traps');}catch(e){showToast('שגיאה: '+e.message);}}
 function deleteTrap(){const id=document.getElementById('tf-id').value;showConfirm('מחיקת מלכודת','האם למחוק את המלכודת? לא ניתן לביטול.',async()=>{await db.collection('traps').doc(id).delete();await loadTraps();renderMarkers();showToast('המלכודת נמחקה');navTo('traps');});}
-function openInspection(trapId){const trap=traps.find(t=>t.id===trapId);if(!trap){showToast('מלכודת לא נמצאה');return;}const ins=insects.find(i=>i.id===trap.insectId);curTrapId=trapId;const phDate=trap.pheromoneDate?fd(trap.pheromoneDate):'לא הוזן';document.getElementById('insp-content').innerHTML=`<div class="trap-hdr"><div class="thn">${ins?.name||'מזיק לא ידוע'}</div><div class="thd">גידול: ${trap.crop||'—'} | חלקה: ${trap.plot||'—'} | שורה: ${trap.row||'—'} | עץ: ${trap.tree||'—'}</div></div><div class="phbox"><span style="font-size:20px;">🧪</span><div><div style="font-weight:700;font-size:13px;">פרומון אחרון</div><div style="font-size:14px;">${phDate}</div></div></div><div class="fs"><div class="fst">ממצאים</div>${ins?ins.fields.map((f,i)=>`<div class="finrow"><label class="finlbl">${f.label}</label><input class="fininp" type="number" id="fi-${i}" min="0" value="0" inputmode="numeric"/></div>`).join(''):'<p style="font-size:13px;color:var(--text-muted)">מזיק לא מוגדר</p>'}</div><div class="fs"><div class="fst">פרומון</div><label class="chkrow"><input type="checkbox" id="ph-chk" onchange="togglePhDate(this)"/><span class="chklbl">החלפתי פרומון היום</span></label><div id="ph-date-row" style="display:none;margin-top:12px;"><label class="frl">תאריך החלפה</label><input class="fin" type="date" id="ph-new-date" value="${di(new Date())}"/></div></div><div class="fs"><div class="fst">הערות</div><textarea class="fta" id="insp-comments" placeholder="הערות..."></textarea></div>`;showV('inspection');updateTopBar('inspection');}
+function openInspection(trapId, existingId, existingData){
+  const trap=traps.find(t=>t.id===trapId);
+  if(!trap){showToast('מלכודת לא נמצאה');return;}
+  const ins=insects.find(i=>i.id===trap.insectId);
+  curTrapId=trapId;
+  curInspectionId=existingId||null;
+  const phDate=trap.pheromoneDate?fd(trap.pheromoneDate):'לא הוזן';document.getElementById('insp-content').innerHTML=`<div class="trap-hdr"><div class="thn">${ins?.name||'מזיק לא ידוע'}</div><div class="thd">גידול: ${trap.crop||'—'} | חלקה: ${trap.plot||'—'} | שורה: ${trap.row||'—'} | עץ: ${trap.tree||'—'}${trap.trapNum?' | מלכודת: '+trap.trapNum:''}</div></div><div class="phbox"><span style="font-size:20px;">🧪</span><div><div style="font-weight:700;font-size:13px;">פרומון אחרון</div><div style="font-size:14px;">${phDate}</div></div></div><div class="fs"><div class="fst">ממצאים</div>${ins?ins.fields.map((f,i)=>`<div class="finrow"><label class="finlbl">${f.label}</label><input class="fininp" type="number" id="fi-${i}" min="0" value="0" inputmode="numeric"/></div>`).join(''):'<p style="font-size:13px;color:var(--text-muted)">מזיק לא מוגדר</p>'}</div><div class="fs"><div class="fst">פרומון</div><label class="chkrow"><input type="checkbox" id="ph-chk" onchange="togglePhDate(this)"/><span class="chklbl">החלפתי פרומון היום</span></label><div id="ph-date-row" style="display:none;margin-top:12px;"><label class="frl">תאריך החלפה</label><input class="fin" type="date" id="ph-new-date" value="${di(new Date())}"/></div></div><div class="fs"><div class="fst">הערות</div><textarea class="fta" id="insp-comments" placeholder="הערות..."></textarea></div>`;showV('inspection');updateTopBar('inspection');}
 function togglePhDate(cb){document.getElementById('ph-date-row').style.display=cb.checked?'block':'none';}
-async function saveInspection(){const trap=traps.find(t=>t.id===curTrapId);const ins=insects.find(i=>i.id===trap?.insectId);if(!trap||!ins){showToast('שגיאה');return;}const findings={};ins.fields.forEach((f,i)=>{findings[f.label]=parseInt(document.getElementById(`fi-${i}`)?.value)||0;});const phR=document.getElementById('ph-chk').checked;const phD=phR?document.getElementById('ph-new-date').value:null;const data={trapId:curTrapId,insectId:trap.insectId,insectName:ins.name,trapSnapshot:{trapNum:trap.trapNum||'',crop:trap.crop,plot:trap.plot,row:trap.row,tree:trap.tree},findings,pheromoneReplaced:phR,pheromoneReplacedDate:phD,comments:document.getElementById('insp-comments').value.trim(),inspectedAt:firebase.firestore.FieldValue.serverTimestamp(),createdAt:firebase.firestore.FieldValue.serverTimestamp()};try{await db.collection('inspections').add(data);if(phR&&phD){await db.collection('traps').doc(curTrapId).update({pheromoneDate:phD});await loadTraps();renderMarkers();}showToast('הסקר נשמר');navTo('map');}catch(e){showToast('שגיאה: '+e.message);}}
+async function saveInspection(){const trap=traps.find(t=>t.id===curTrapId);const ins=insects.find(i=>i.id===trap?.insectId);if(!trap||!ins){showToast('שגיאה');return;}const findings={};ins.fields.forEach((f,i)=>{findings[f.label]=parseInt(document.getElementById(`fi-${i}`)?.value)||0;});const phR=document.getElementById('ph-chk').checked;const phD=phR?document.getElementById('ph-new-date').value:null;const data={trapId:curTrapId,insectId:trap.insectId,insectName:ins.name,trapSnapshot:{trapNum:trap.trapNum||'',crop:trap.crop,plot:trap.plot,row:trap.row,tree:trap.tree},findings,pheromoneReplaced:phR,pheromoneReplacedDate:phD,comments:document.getElementById('insp-comments').value.trim(),inspectedAt:firebase.firestore.FieldValue.serverTimestamp(),createdAt:firebase.firestore.FieldValue.serverTimestamp()};try{if(curInspectionId){
+    await db.collection('inspections').doc(curInspectionId).update(data);
+    showToast('הדיווח עודכן בהצלחה');
+  } else {
+    await db.collection('inspections').add(data);
+    showToast('הדיווח נשמר');
+  }
+  curInspectionId=null;if(phR&&phD){await db.collection('traps').doc(curTrapId).update({pheromoneDate:phD});await loadTraps();renderMarkers();}showToast('הסקר נשמר');navTo('map');}catch(e){showToast('שגיאה: '+e.message);}}
 function prepExport(){const now=new Date(),from=new Date(now.getFullYear(),now.getMonth(),1);document.getElementById('ex-from').value=di(from);document.getElementById('ex-to').value=di(now);const sel=document.getElementById('ex-ins');sel.innerHTML='<option value="">כל המזיקים</option>'+insects.map(i=>`<option value="${i.id}">${i.name}</option>`).join('');}
 async function exportCSV(){
   const from=document.getElementById('ex-from').value,
