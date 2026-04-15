@@ -180,7 +180,8 @@
     #bottom-bar { height: calc(var(--bar) + env(safe-area-inset-bottom)); }
     .view { top: var(--gtb); bottom: var(--bar); }
 
-  </style>
+      .btn-del{padding:10px 18px;background:white;color:rgb(137,10,10);border:1.5px solid rgb(137,10,10);border-radius:8px;font-size:13px;font-family:Arial,sans-serif;font-weight:600;cursor:pointer;}
+    </style>
 </head>
 <body>
 
@@ -278,7 +279,7 @@
   </div>
   <div class="ffoot"><button class="btn-sec" onclick="navTo('traps')">ביטול</button><button class="btn-sav" onclick="saveTrap()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> שמור</button></div>
 </div>
-<div class="view" id="view-inspection"><div class="fv" id="insp-content"></div><div class="ffoot"><button class="btn-sec" onclick="navTo('map')">ביטול</button><button class="btn-sav" onclick="saveInspection()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> שמור</button></div></div>
+<div class="view" id="view-inspection"><div class="fv" id="insp-content"></div><div class="ffoot"><button class="btn-sec" onclick="navTo('map')">ביטול</button><button id="del-insp-btn" class="btn-del" onclick="deleteInspection()" style="display:none;">מחק</button><button class="btn-sav" onclick="saveInspection()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> שמור</button></div></div>
 <div class="view" id="view-export">
   <div class="sc">
     <div class="fs"><div class="fst">טווח תאריכים</div><div class="dpair"><div class="fr"><label class="frl">מתאריך</label><input class="fin" type="date" id="ex-from"/></div><div class="fr"><label class="frl">עד תאריך</label><input class="fin" type="date" id="ex-to"/></div></div></div>
@@ -608,9 +609,21 @@ function openInspection(trapId, existingId, existingData){
   if(!trap){showToast('מלכודת לא נמצאה');return;}
   const ins=insects.find(i=>i.id===trap.insectId);
   curTrapId=trapId;
-  curInspectionId=existingId||null;
+  curInspectionId=existingId||null;setTimeout(()=>{const db=document.getElementById('del-insp-btn');if(db)db.style.display=curInspectionId?'block':'none';},50);
   const phDate=trap.pheromoneDate?fd(trap.pheromoneDate):'לא הוזן';document.getElementById('insp-content').innerHTML=`<div class="trap-hdr"><div class="thn">${ins?.name||'מזיק לא ידוע'}</div><div class="thd">גידול: ${trap.crop||'—'} | חלקה: ${trap.plot||'—'} | שורה: ${trap.row||'—'} | עץ: ${trap.tree||'—'}${trap.trapNum?' | מלכודת: '+trap.trapNum:''}</div></div><div class="phbox"><span style="font-size:20px;">🧪</span><div><div style="font-weight:700;font-size:13px;">פרומון אחרון</div><div style="font-size:14px;">${phDate}</div></div></div><div class="fs"><div class="fst">ממצאים</div>${ins?ins.fields.map((f,i)=>`<div class="finrow"><label class="finlbl">${f.label}</label><input class="fininp" type="number" id="fi-${i}" min="0" value="0" inputmode="numeric"/></div>`).join(''):'<p style="font-size:13px;color:var(--text-muted)">מזיק לא מוגדר</p>'}</div><div class="fs"><div class="fst">פרומון</div><label class="chkrow"><input type="checkbox" id="ph-chk" onchange="togglePhDate(this)"/><span class="chklbl">החלפתי פרומון היום</span></label><div id="ph-date-row" style="display:none;margin-top:12px;"><label class="frl">תאריך החלפה</label><input class="fin" type="date" id="ph-new-date" value="${di(new Date())}"/></div></div><div class="fs"><div class="fst">הערות</div><textarea class="fta" id="insp-comments" placeholder="הערות..."></textarea></div>`;showV('inspection');updateTopBar('inspection');}
 function togglePhDate(cb){document.getElementById('ph-date-row').style.display=cb.checked?'block':'none';}
+
+async function deleteInspection(){
+  if(!curInspectionId){showToast('אין דיווח למחיקה');return;}
+  if(!confirm('למחוק את הדיווח? פעולה זו אינה ניתנת לביטול.'))return;
+  try{
+    await db.collection('inspections').doc(curInspectionId).delete();
+    curInspectionId=null;
+    showToast('הדיווח נמחק');
+    navTo('map');
+  }catch(e){showToast('שגיאה במחיקה: '+e.message);}
+}
+
 async function saveInspection(){const trap=traps.find(t=>t.id===curTrapId);const ins=insects.find(i=>i.id===trap?.insectId);if(!trap||!ins){showToast('שגיאה');return;}const findings={};ins.fields.forEach((f,i)=>{findings[f.label]=parseInt(document.getElementById(`fi-${i}`)?.value)||0;});const phR=document.getElementById('ph-chk').checked;const phD=phR?document.getElementById('ph-new-date').value:null;const data={trapId:curTrapId,insectId:trap.insectId,insectName:ins.name,trapSnapshot:{trapNum:trap.trapNum||'',crop:trap.crop,plot:trap.plot,row:trap.row,tree:trap.tree},findings,pheromoneReplaced:phR,pheromoneReplacedDate:phD,comments:document.getElementById('insp-comments').value.trim(),inspectedAt:firebase.firestore.FieldValue.serverTimestamp(),createdAt:firebase.firestore.FieldValue.serverTimestamp()};try{if(curInspectionId){
     await db.collection('inspections').doc(curInspectionId).update(data);
     showToast('הדיווח עודכן בהצלחה');
