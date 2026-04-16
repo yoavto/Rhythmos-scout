@@ -584,7 +584,7 @@ function applyTrapFilter(){
   el.innerHTML=filtered.map(t=>{
     const ins=insects.find(i=>i.id===t.insectId);
     const col=ins?.color||'#8B1A1A';
-    return `<div class="card" onclick="openInspection('${t.id}')" style="border-right-color:${col}"><div class="cdot" style="background:${col}"></div><div class="cb"><div class="ct" style="display:flex;justify-content:space-between;align-items:baseline;gap:6px;"><span>${ins?.name||'מזיק לא ידוע'}</span><span style="font-size:12px;font-weight:400;color:rgba(69,71,74,0.65);white-space:nowrap;">${t.pheromoneDate?'🧪 '+fd(t.pheromoneDate):''}</span></div><div class="cs">${t.plot||'—'}${t.trapNum?' | מלכודת: '+t.trapNum:''}</div></div><div class="ca"><button class="ia" onclick="event.stopPropagation();openTrapForm('${t.id}')">✏️</button></div></div>`;
+    return `<div class="card" onclick="openInspection('${t.id}')" style="border-right-color:${col}"><div class="cdot" style="background:${col}"></div><div class="cb"><div class="ct">${ins?.name||'מזיק לא ידוע'}${t.pheromoneDate?' <span style="font-size:12px;font-weight:400;color:rgba(69,71,74,0.65);">🧪 '+fd(t.pheromoneDate)+'</span>':''}</div><div class="cs">${t.plot||'—'}${t.trapNum?' | מלכודת: '+t.trapNum:''}</div></div><div class="ca"><button class="ia" onclick="event.stopPropagation();openTrapForm('${t.id}')">✏️</button></div></div>`;
   }).join('')+fab;
 }
 
