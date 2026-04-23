@@ -218,7 +218,13 @@
   </div>
 </div>
 
-<div class="view" id="view-map"><div id="map-wrap"><div id="map-container"></div><button class="map-type-btn" onclick="toggleMapType()">🛰️ לוויין</button><button class="map-fab" onclick="locateMe()" title="מיקום נוכחי">📍</button></div></div>
+<div class="view" id="view-map"><div id="map-wrap"><div id="map-container"></div>
+  <div id="map-pick-overlay" style="display:none;position:absolute;inset:0;pointer-events:none;z-index:20;">
+    <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-100%);font-size:36px;line-height:1;">📍</div>
+  </div>
+  <div id="map-pick-bar" style="display:none;position:absolute;bottom:16px;left:50%;transform:translateX(-50%);z-index:21;pointer-events:auto;">
+    <button onclick="saveMapPickLocation()" style="padding:12px 28px;background:var(--teal);color:white;border:none;border-radius:10px;font-family:Arial,sans-serif;font-size:14px;font-weight:700;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,0.25);">שמור מיקום זה</button>
+  </div><button class="map-type-btn" onclick="toggleMapType()">🛰️ לוויין</button><button class="map-fab" onclick="locateMe()" title="מיקום נוכחי">📍</button></div></div>
 <div class="view" id="view-insects"><div class="sc" id="insects-list"></div></div>
 <div class="view" id="view-insect-form">
   <div class="fv"><input type="hidden" id="if-id"/>
@@ -360,11 +366,7 @@ function initMap(){
       ()=>{}, {enableHighAccuracy:true, maximumAge:10000}
     );
   }
-  map.addListener('click',e=>{
-    if(!mapPickMode)return;
-    const la=e.latLng.lat(),ln=e.latLng.lng();
-    if(mapPickMarker)mapPickMarker.setMap(null);
-    mapPickMarker=new google.maps.Marker({position:{lat:la,lng:ln},map,icon:{path:google.maps.SymbolPath.CIRCLE,scale:10,fillColor:'#134f5c',fillOpacity:1,strokeColor:'white',strokeWeight:2}});
+  map.addListener('click',e=>{ if(!mapPickMode)return; /* location set via center pin */ });
     document.getElementById('tf-lat').value=la;document.getElementById('tf-lng').value=ln;
     document.getElementById('gps-disp').textContent=la.toFixed(6)+', '+ln.toFixed(6);
     mapPickMode=false;map.setOptions({draggableCursor:null});showToast('מיקום נקבע');
@@ -475,7 +477,32 @@ async function openLastInspection(trapId) {
 }
 
 function addMarker(trap){if(!map||!trap.lat||!trap.lng)return;const ins=insects.find(i=>i.id===trap.insectId);const col=ins?.color||'#8B1A1A';const m=new google.maps.Marker({position:{lat:trap.lat,lng:trap.lng},map,title:`${ins?.name||'?'} | ${trap.plot||''} שורה ${trap.row||''} עץ ${trap.tree||''}`,icon:{path:'M 0,-16 C -6,-16 -10,-11 -10,-6 C -10,2 0,14 0,14 C 0,14 10,2 10,-6 C 10,-11 6,-16 0,-16 Z',fillColor:col,fillOpacity:0.93,strokeColor:'white',strokeWeight:1.5,scale:1,anchor:new google.maps.Point(0,14)},zIndex:100});m.addListener('click',()=>openTrapBubble(trap.id,m));trapMarkers[trap.id]=m;}
-function startMapPick(){if(!map){showToast('המפה לא נטענה עדיין');return;}mapPickMode=true;map.setOptions({draggableCursor:'crosshair'});showToast('לחץ על המפה לסימון מיקום המלכודת');navTo('map');}
+function startMapPick(){
+  if(!map){showToast('המפה לא נטענה עדיין');return;}
+  mapPickMode=true;
+  navTo('map');
+  setTimeout(()=>{
+    document.getElementById('map-pick-overlay').style.display='block';
+    document.getElementById('map-pick-bar').style.display='block';
+    map.setOptions({draggableCursor:'grab'});
+    showToast('הזז את המפה עד שהנעץ יהיה מעל המיקום הרצוי');
+  },100);
+}
+function saveMapPickLocation(){
+  if(!map||!mapPickMode)return;
+  const c=map.getCenter();
+  const la=c.lat(), ln=c.lng();
+  document.getElementById('tf-lat').value=la;
+  document.getElementById('tf-lng').value=ln;
+  document.getElementById('gps-disp').textContent=la.toFixed(6)+', '+ln.toFixed(6);
+  mapPickMode=false;
+  map.setOptions({draggableCursor:''});
+  document.getElementById('map-pick-overlay').style.display='none';
+  document.getElementById('map-pick-bar').style.display='none';
+  if(mapPickMarker){mapPickMarker.setMap(null);mapPickMarker=null;}
+  showV('trap-form');updateTopBar('trap-form');
+  showToast('המיקום נשמר');
+}
 function navTo(s){curView=s;showV(s);if(s==='insects')renderInsects();if(s==='traps')renderTraps();if(s==='export')prepExport();if(s==='map'&&map)setTimeout(()=>google.maps.event.trigger(map,'resize'),50);updateTopBar(s);}
 function showV(n){curView=n;document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));const el=document.getElementById('view-'+n);if(el){el.classList.add('active');if(n!=='login'){el.style.top=GTB_H+'px';el.style.bottom=BAR_H+'px';}else{el.style.top='0';el.style.bottom='0';}}updateTopBar(n);}
 function updateTopBar(v){
