@@ -266,9 +266,11 @@
 <div class="view" id="view-trap-form">
   <div class="fv"><input type="hidden" id="tf-id"/>
     <div class="fs"><div class="fst">מיקום מלכודת</div>
-      <div class="gbox"><span id="gps-disp">לא נקלט מיקום</span><button class="gbtn" onclick="captureGPS()">📡 GPS</button></div>
-      <div style="margin-top:8px;font-size:12px;color:var(--text-muted);text-align:center;">— או —</div>
-      <button onclick="startMapPick()" style="width:100%;margin-top:8px;padding:9px;border:1.5px dashed var(--teal);border-radius:8px;background:rgba(19,79,92,0.06);color:var(--teal);font-family:Arial,sans-serif;font-size:13px;font-weight:600;cursor:pointer;">🗺️ סמן על המפה</button>
+      <div style="font-size:12px;color:var(--teal);font-family:monospace;background:var(--cream);border-radius:6px;padding:6px 10px;margin-bottom:10px;min-height:22px;" id="gps-disp">לא נקלט מיקום</div>
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <button onclick="captureGPS()" style="width:100%;padding:10px;background:var(--teal);color:white;border:1.5px solid var(--teal);border-radius:8px;font-family:Arial,sans-serif;font-size:13px;font-weight:600;cursor:pointer;box-sizing:border-box;">📡 שמור מיקום נוכחי</button>
+        <button onclick="startMapPick()" style="width:100%;padding:10px;background:white;color:var(--teal);border:1.5px solid var(--teal);border-radius:8px;font-family:Arial,sans-serif;font-size:13px;font-weight:600;cursor:pointer;box-sizing:border-box;">🗺️ סמן על המפה</button>
+      </div>
       <input type="hidden" id="tf-lat"/><input type="hidden" id="tf-lng"/>
     </div>
     <div class="fs"><div class="fst">סוג מזיק</div><div id="ichip-grid"></div></div>
