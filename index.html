@@ -367,11 +367,7 @@ function initMap(){
     );
   }
   map.addListener('click',e=>{ if(!mapPickMode)return; /* location set via center pin */ });
-    document.getElementById('tf-lat').value=la;document.getElementById('tf-lng').value=ln;
-    document.getElementById('gps-disp').textContent=la.toFixed(6)+', '+ln.toFixed(6);
-    mapPickMode=false;map.setOptions({draggableCursor:null});showToast('מיקום נקבע');
-    navTo('trap-form');
-  });
+
   renderMarkers();
 }
 function toggleMapType(){mapType=mapType==='hybrid'?'roadmap':'hybrid';map.setMapTypeId(mapType);document.querySelector('.map-type-btn').textContent=mapType==='hybrid'?'🛰️ לוויין':'🗺️ מפה';}
