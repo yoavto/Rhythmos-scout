@@ -411,7 +411,7 @@ function updateLocationDot(pos){
 // ── Map bubble: shows on marker tap ─────────────────────────────────────────
 let activeBubble = null;
 
-function openTrapBubble(trapId, marker) {
+async function openTrapBubble(trapId, marker) {
   // Close existing bubble
   if (activeBubble) { activeBubble.close(); activeBubble = null; }
 
@@ -420,16 +420,29 @@ function openTrapBubble(trapId, marker) {
   if (!trap) return;
 
   const trapLabel = [
-    trap.crop || '', trap.plot || '',
-    trap.row ? 'שורה ' + trap.row : '',
-    trap.tree ? 'עץ ' + trap.tree : '',
+    trap.plot || '',
     trap.trapNum ? 'מלכודת ' + trap.trapNum : ''
   ].filter(Boolean).join(' | ');
 
+  // Fetch last inspection date
+  let lastInspLabel = 'אין סקרים';
+  try {
+    const snap = await db.collection('inspections')
+      .where('trapId', '==', trapId)
+      .orderBy('inspectedAt', 'desc')
+      .limit(1)
+      .get();
+    if (!snap.empty) {
+      const dt = snap.docs[0].data().inspectedAt?.toDate?.() || null;
+      if (dt) lastInspLabel = dt.toLocaleDateString('he-IL');
+    }
+  } catch(e) { lastInspLabel = '—'; }
+
   const infoWindow = new google.maps.InfoWindow({
-    content: `<div dir="rtl" style="font-family:Arial;min-width:180px;padding:4px 2px;">
-      <div style="font-weight:700;font-size:14px;color:#89000a;margin-bottom:4px;">${ins?.name || 'מזיק לא ידוע'}</div>
-      <div style="font-size:11px;color:#666;margin-bottom:10px;">${trapLabel}</div>
+    content: `<div dir="rtl" style="font-family:Arial;min-width:190px;padding:4px 2px;">
+      <div style="font-weight:700;font-size:14px;color:#89000a;margin-bottom:3px;">${ins?.name || 'מזיק לא ידוע'}</div>
+      <div style="font-size:11px;color:#666;margin-bottom:4px;">${trapLabel}</div>
+      <div style="font-size:11px;color:#444;margin-bottom:10px;">תאריך סקר אחרון: <strong>${lastInspLabel}</strong></div>
       <div style="display:flex;gap:8px;">
         <button onclick="closeBubbleAndDo('new','${trapId}')"
           style="flex:1;padding:7px 6px;background:#89000a;color:white;border:none;border-radius:7px;font-family:Arial;font-size:12px;font-weight:600;cursor:pointer;">
@@ -445,7 +458,6 @@ function openTrapBubble(trapId, marker) {
   });
   infoWindow.open(map, marker);
   activeBubble = infoWindow;
-  // Close on map click
   google.maps.event.addListenerOnce(map, 'click', () => {
     infoWindow.close(); activeBubble = null;
   });
