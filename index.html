@@ -424,8 +424,9 @@ async function openTrapBubble(trapId, marker) {
     trap.trapNum ? 'מלכודת ' + trap.trapNum : ''
   ].filter(Boolean).join(' | ');
 
-  // Fetch last inspection date
+  // Fetch last inspection date + comments
   let lastInspLabel = 'אין סקרים';
+  let lastInspComment = '';
   try {
     const snap = await db.collection('inspections')
       .where('trapId', '==', trapId)
@@ -433,8 +434,11 @@ async function openTrapBubble(trapId, marker) {
       .limit(1)
       .get();
     if (!snap.empty) {
-      const dt = snap.docs[0].data().inspectedAt?.toDate?.() || null;
+      const data = snap.docs[0].data();
+      const dt = data.inspectedAt?.toDate?.() || null;
       if (dt) lastInspLabel = dt.toLocaleDateString('he-IL');
+      const c = (data.comments || '').trim();
+      if (c) lastInspComment = c.length > 60 ? c.substring(0, 60) + '...' : c;
     }
   } catch(e) { lastInspLabel = '—'; }
 
@@ -442,7 +446,8 @@ async function openTrapBubble(trapId, marker) {
     content: `<div dir="rtl" style="font-family:Arial;min-width:190px;padding:4px 2px;">
       <div style="font-weight:700;font-size:14px;color:#89000a;margin-bottom:3px;">${ins?.name || 'מזיק לא ידוע'}</div>
       <div style="font-size:11px;color:#666;margin-bottom:4px;">${trapLabel}</div>
-      <div style="font-size:11px;color:#444;margin-bottom:10px;">תאריך סקר אחרון: <strong>${lastInspLabel}</strong></div>
+      <div style="font-size:11px;color:#444;margin-bottom:${lastInspComment?'4px':'10px'};">תאריך סקר אחרון: <strong>${lastInspLabel}</strong></div>
+      ${lastInspComment?`<div style="font-size:11px;color:#666;margin-bottom:10px;font-style:italic;">${lastInspComment}</div>`:''}
       <div style="display:flex;gap:8px;">
         <button onclick="closeBubbleAndDo('new','${trapId}')"
           style="flex:1;padding:7px 6px;background:#89000a;color:white;border:none;border-radius:7px;font-family:Arial;font-size:12px;font-weight:600;cursor:pointer;">
