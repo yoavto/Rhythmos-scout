@@ -1160,17 +1160,20 @@ function renderSurveyForm(dateVal, timeVal, plotId, zone) {
   body.innerHTML = `
     <!-- Header -->
     <div class="survey-hdr-section">
-      <div class="fr">
-        <label class="frl">חלקה</label>
-        <select class="fin" id="sv-plot" onchange="onSurveyPlotChange(this.value)">
-          <option value="">בחר חלקה...</option>
-          ${plots.map(p=>`<option value="${p.id}" ${p.id===plotId?'selected':''}>${p.name} (${p.crop||''})</option>`).join('')}
-        </select>
-      </div>
-      <div class="fr">
-        <label class="frl">אזור בחלקה</label>
-        <div class="zone-grid" id="zone-grid">
-          ${ZONES.map(z=>`<button class="zone-btn ${z===zone?'sel':''}" onclick="selectZone('${z}')">${z}</button>`).join('')}
+      <div style="display:flex;gap:10px;align-items:flex-end;">
+        <div class="fr" style="flex:2;">
+          <label class="frl">חלקה</label>
+          <select class="fin" id="sv-plot" onchange="onSurveyPlotChange(this.value)">
+            <option value="">בחר חלקה...</option>
+            ${plots.map(p=>`<option value="${p.id}" ${p.id===plotId?'selected':''}>${p.name} (${p.crop||''})</option>`).join('')}
+          </select>
+        </div>
+        <div class="fr" style="flex:1;">
+          <label class="frl">אזור</label>
+          <select class="fin" id="sv-zone" onchange="selectZone(this.value)">
+            <option value="">—</option>
+            ${ZONES.map(z=>`<option value="${z}" ${z===zone?'selected':''}>${z}</option>`).join('')}
+          </select>
         </div>
       </div>
       <div style="display:flex;gap:10px;margin-top:8px;">
@@ -1220,9 +1223,8 @@ function setCount(pestId, check, val) {
 
 function selectZone(zone) {
   curSurveyZone = zone;
-  document.querySelectorAll('.zone-btn').forEach(b => {
-    b.classList.toggle('sel', b.textContent === zone);
-  });
+  const sel = document.getElementById('sv-zone');
+  if(sel) sel.value = zone;
 }
 
 function onSurveyPlotChange(plotId) {
