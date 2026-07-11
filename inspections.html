@@ -1219,12 +1219,14 @@ async function exportExcelNew() {
         if(addr[0] === '!') continue;
         const ref = XS.utils.decode_cell(addr);
         const r = ref.r, c = ref.c;
-        if(r === 0) {
-          ws[addr].s = sHeader;              // header row
+        if(c === 0) {
+          ws[addr].s = sData;               // column A — never bold
+        } else if(r === 0) {
+          ws[addr].s = sHeader;              // header row (col B+) — bold
         } else if(varietyRowNums.has(r)) {
-          ws[addr].s = sVariety;             // variety header row — bold, ALL columns
+          ws[addr].s = sVariety;             // variety rows (col B+) — bold
         } else {
-          ws[addr].s = sData;               // data rows — wrap, no bold
+          ws[addr].s = sData;               // data cells — wrap, no bold
         }
       }
 
