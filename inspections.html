@@ -1192,40 +1192,41 @@ async function exportExcelNew() {
 
       // Use XLSXStyle for style support, fall back to XLSX
       const XS = (typeof XLSXStyle !== 'undefined') ? XLSXStyle : XLSX;
+
+      // Tag variety rows BEFORE building sheet (reliable detection)
+      const varietyRowNums = new Set();
+      aoa.forEach((row, i) => {
+        if(i === 0) return; // skip header
+        if(row[0] && !row[0].includes('\n') && row.slice(1).every(v => !v))
+          varietyRowNums.add(i);
+      });
+
       const ws = XS.utils.aoa_to_sheet(aoa);
 
-      // RTL
+      // RTL sheet direction
       ws['!views'] = [{rightToLeft: true}];
 
-      // Column width: 140px (wpx) for all columns
+      // Column width: 140px for all columns
       ws['!cols'] = headers.map(() => ({wpx: 140}));
 
-      // Apply styles to all data cells: wrap text + top align
-      const wrapStyle   = {alignment: {wrapText: true, vertical: 'top'}};
-      const headerStyle = {alignment: {wrapText: true, vertical: 'top'}, font: {bold: true, sz: 11}};
-      const varietyStyle= {alignment: {wrapText: false, vertical: 'middle'}, font: {bold: true, sz: 12}};
+      // Style definitions — readingOrder:2 = RTL text inside cells
+      const sData    = {alignment: {wrapText: true,  vertical: 'top',    readingOrder: 2}};
+      const sHeader  = {alignment: {wrapText: true,  vertical: 'center', readingOrder: 2}, font: {bold: true, sz: 11}};
+      const sVariety = {alignment: {wrapText: false, vertical: 'center', readingOrder: 2}, font: {bold: true, sz: 12}};
 
-      // First pass: apply wrap to all cells
+      // Apply styles cell by cell
       for(const addr in ws) {
-        if(addr[0]==='!') continue;
-        ws[addr].s = {...wrapStyle};
-      }
-
-      // Header row (row 0): bold
-      headers.forEach((_, c) => {
-        const addr = XS.utils.encode_cell({r:0, c});
-        if(ws[addr]) ws[addr].s = {...headerStyle};
-      });
-
-      // Variety rows: bold, detect rows where only col A has value and no newlines
-      aoa.slice(1).forEach((row, i) => {
-        const rowIdx = i + 1;
-        const isVariety = row[0] && !row[0].includes('\n') && row.slice(1).every(v => !v);
-        if(isVariety) {
-          const addr = XS.utils.encode_cell({r:rowIdx, c:0});
-          if(ws[addr]) ws[addr].s = {...varietyStyle};
+        if(addr[0] === '!') continue;
+        const ref = XS.utils.decode_cell(addr);
+        const r = ref.r, c = ref.c;
+        if(r === 0) {
+          ws[addr].s = sHeader;              // header row
+        } else if(varietyRowNums.has(r)) {
+          ws[addr].s = sVariety;             // variety header row — bold, ALL columns
+        } else {
+          ws[addr].s = sData;               // data rows — wrap, no bold
         }
-      });
+      }
 
       XS.utils.book_append_sheet(wb, ws, crop.substring(0,31));
     });
