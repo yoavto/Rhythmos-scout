@@ -673,8 +673,9 @@ async function loadPlots() {
 }
 
 async function loadPests() {
-  const snap = await db.collection('insp_pests').orderBy('sortOrder').orderBy('name').get();
-  pests = snap.docs.map(d => ({id:d.id,...d.data()}));
+  const snap = await db.collection('insp_pests').orderBy('name').get();
+  const allPests = snap.docs.map(d => ({id:d.id,...d.data()}));
+  pests = allPests.sort((a,b) => (a.sortOrder??999) - (b.sortOrder??999) || a.name.localeCompare(b.name,'he'));
 }
 
 // ════════════════════════════════════════════════════════════════════
@@ -863,13 +864,10 @@ async function movePest(id, direction) {
   if(idx < 0) return;
   const targetIdx = idx + direction;
   if(targetIdx < 0 || targetIdx >= pests.length) return;
-
-  const p1 = pests[idx];
-  const p2 = pests[targetIdx];
-  const s1 = p1.sortOrder ?? idx;
-  const s2 = p2.sortOrder ?? targetIdx;
-
-  showToast('מעדכן סדר...');
+  const p1 = pests[idx], p2 = pests[targetIdx];
+  // Assign numeric sortOrders if missing
+  const s1 = (p1.sortOrder != null) ? p1.sortOrder : idx;
+  const s2 = (p2.sortOrder != null) ? p2.sortOrder : targetIdx;
   try {
     const batch = db.batch();
     batch.update(db.collection('insp_pests').doc(p1.id), {sortOrder: s2});
@@ -877,19 +875,7 @@ async function movePest(id, direction) {
     await batch.commit();
     await loadPests();
     renderPests();
-    showToast('הסדר עודכן');
-  } catch(e) {
-    // Fallback: set numeric sortOrder for all pests
-    try {
-      const batch2 = db.batch();
-      pests.forEach((p, i) => {
-        batch2.update(db.collection('insp_pests').doc(p.id), {sortOrder: i});
-      });
-      await batch2.commit();
-      // Then do the swap
-      await movePest(id, direction);
-    } catch(e2) { showToast('שגיאה: ' + e2.message); }
-  }
+  } catch(e) { showToast('שגיאה: ' + e.message); }
 }
 
 function renderPests() {
@@ -907,9 +893,9 @@ function renderPests() {
         <div class="card-sub" style="margin-top:2px;">${(p.checks||[]).join(' · ')||'—'}</div>
         <div class="card-sub" style="margin-top:2px;">מדגם: ${p.sampleRows||0} שורות × ${p.sampleTrees||0} עצים × ${p.sampleFruits||0} פירות</div>
       </div>
-      <div class="card-actions" style="display:flex;flex-direction:column;gap:4px;align-items:center;">
-        <button class="ia" onclick="event.stopPropagation();movePest('${p.id}',-1)" style="font-size:16px;opacity:${i===0?0.2:1};${i===0?'pointer-events:none;':''}">⬆</button>
-        <button class="ia" onclick="event.stopPropagation();movePest('${p.id}',1)" style="font-size:16px;opacity:${i===pests.length-1?0.2:1};${i===pests.length-1?'pointer-events:none;':''}">⬇</button>
+      <div class="card-actions" style="display:flex;flex-direction:column;gap:2px;align-items:center;">
+        <button class="ia" onclick="event.stopPropagation();movePest('${p.id}',-1)" style="font-size:16px;${i===0?'opacity:0.25;pointer-events:none;':''}">⬆</button>
+        <button class="ia" onclick="event.stopPropagation();movePest('${p.id}',1)"  style="font-size:16px;${i===pests.length-1?'opacity:0.25;pointer-events:none;':''}">⬇</button>
         <button class="ia" onclick="event.stopPropagation();openPestForm('${p.id}')">✏️</button>
       </div>
     </div>`).join('');
@@ -992,7 +978,8 @@ async function savePest() {
       await db.collection('insp_pests').doc(id).update(data);
     } else {
       data.createdAt = firebase.firestore.FieldValue.serverTimestamp();
-      data.sortOrder = pests.length; await db.collection('insp_pests').add(data);
+      data.sortOrder = pests.length;
+      await db.collection('insp_pests').add(data);
     }
     await loadPests();
     renderPests();
