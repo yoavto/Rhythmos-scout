@@ -168,6 +168,47 @@
     .import-zone:hover{background:rgba(19,79,92,0.08);}
     .tag{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:12px;
       font-size:12px;background:rgba(19,79,92,0.1);color:var(--teal);margin:2px;}
+  
+    /* ── SURVEY ── */
+    .survey-card{background:white;border-radius:var(--radius);padding:12px 14px;margin-bottom:8px;
+      box-shadow:0 1px 6px rgba(0,0,0,0.06);display:flex;align-items:center;gap:10px;cursor:pointer;}
+    .survey-card.pending{border-right:4px solid #e6a817;}
+    .survey-card.complete{border-right:4px solid #27ae60;}
+    .survey-sec-label{font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;
+      letter-spacing:0.06em;padding:8px 0 4px;margin-bottom:4px;}
+    .pest-survey-card{background:white;border-radius:10px;margin-bottom:10px;
+      box-shadow:0 1px 5px rgba(0,0,0,0.06);overflow:hidden;}
+    .pest-survey-hdr{display:flex;align-items:center;justify-content:space-between;
+      padding:11px 14px;cursor:pointer;gap:8px;}
+    .pest-survey-hdr.has-data{background:rgba(19,79,92,0.05);}
+    .pest-survey-name{font-size:14px;font-weight:600;flex:1;}
+    .pest-survey-sample{font-size:11px;color:var(--text-muted);}
+    .pest-survey-body{padding:0 14px 12px;border-top:1px solid rgba(0,0,0,0.05);}
+    .check-row{display:flex;align-items:center;justify-content:space-between;
+      padding:10px 0;border-bottom:1px solid rgba(0,0,0,0.05);}
+    .check-row:last-child{border-bottom:none;}
+    .check-label{font-size:14px;font-weight:500;flex:1;}
+    .counter{display:flex;align-items:center;gap:0;}
+    .counter-btn{width:36px;height:36px;border:1.5px solid var(--border);background:white;
+      font-size:20px;font-weight:300;cursor:pointer;color:var(--text);
+      display:flex;align-items:center;justify-content:center;font-family:Arial;}
+    .counter-btn.minus{border-radius:8px 0 0 8px;}
+    .counter-btn.plus{border-radius:0 8px 8px 0;background:var(--teal);color:white;border-color:var(--teal);}
+    .counter-val{width:52px;height:36px;border-top:1.5px solid var(--border);border-bottom:1.5px solid var(--border);
+      border-left:none;border-right:none;text-align:center;font-size:18px;font-weight:600;
+      font-family:Arial;color:var(--text);background:var(--input-bg);outline:none;}
+    .survey-hdr-section{background:white;border-radius:var(--radius);padding:13px 14px;margin-bottom:10px;
+      box-shadow:0 1px 6px rgba(0,0,0,0.05);}
+    .survey-footer{display:flex;gap:8px;padding:10px 14px 14px;flex-shrink:0;background:#f0f0f0;}
+    .btn-complete{flex:1;padding:12px;background:var(--teal);color:white;border:none;border-radius:8px;
+      font-family:Arial;font-size:13px;font-weight:600;cursor:pointer;}
+    .btn-pending{flex:1;padding:12px;background:white;color:var(--teal);border:1.5px solid var(--teal);
+      border-radius:8px;font-family:Arial;font-size:13px;font-weight:600;cursor:pointer;}
+    .zone-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:6px;}
+    .zone-btn{padding:7px 4px;border:1.5px solid var(--border);border-radius:8px;background:white;
+      font-family:Arial;font-size:12px;font-weight:500;cursor:pointer;text-align:center;color:var(--text);}
+    .zone-btn.sel{background:var(--teal);border-color:var(--teal);color:white;font-weight:700;}
+
   </style>
 </head>
 <body>
@@ -364,11 +405,15 @@
      PANE 3: SURVEY (תצפיות) — placeholder for future development
 ════════════════════════════════════════════════════════════════════ -->
 <div class="view" id="view-survey">
-  <div class="sc">
-    <div class="empty">
-      <div class="eico">📋</div>
-      <p>מודול דיווח תצפיות<br/><span style="font-size:12px;color:#aaa;">בפיתוח — יתווסף בקרוב</span></p>
-    </div>
+  <div class="sc" id="survey-list"></div>
+</div>
+
+<!-- Survey Form -->
+<div class="view" id="view-survey-form">
+  <div class="fv" id="survey-form-body" style="padding-bottom:0;"></div>
+  <div class="survey-footer">
+    <button class="btn-pending" onclick="saveSurvey('pending')">שמור להמשך</button>
+    <button class="btn-complete" onclick="saveSurvey('complete')">סיים תצפית ✓</button>
   </div>
 </div>
 
@@ -446,12 +491,14 @@ let pests   = [];   // {id, name, crops[], checks[], sampleRows, sampleTrees, sa
 let curView = 'login';
 let confirmCb = null;
 let importPlotsData = [];
+let curSurveyId=null,surveyPestData={},curSurveyPlotId=null,curSurveyZone='',surveyCropPests=[];
 let savedPestSel = {};  // saved pest checkbox state for export
 
 const BACK = {
   'plot-form'   : 'plots',
   'plots-import': 'plots',
   'pest-form'   : 'pests',
+  'survey-form' : 'survey',
 };
 const MAIN_VIEWS = ['plots','pests','survey','export'];
 
@@ -475,6 +522,7 @@ function navTo(v) {
 
   if(v==='plots')  renderPlots();
   if(v==='pests')  renderPests();
+  if(v==='survey') renderSurveys();
   if(v==='export') renderExportPests();
 }
 
@@ -922,6 +970,327 @@ async function exportJSON() {
   } catch(e) { showToast('שגיאה: '+e.message); }
 }
 
+
+
+// ════════════════════════════════════════════════════════════════════
+// SURVEYS
+// ════════════════════════════════════════════════════════════════════
+
+async function loadSurveys() {
+  return db.collection('insp_surveys').orderBy('date','desc').limit(100).get();
+}
+
+function renderSurveys() {
+  const el = document.getElementById('survey-list');
+  const fab = `<div class="fab-wrap"><button class="fab" onclick="startNewSurvey()">+</button></div>`;
+
+  db.collection('insp_surveys').orderBy('date','desc').limit(80).get().then(snap => {
+    if(snap.empty) {
+      el.innerHTML = `<div class="empty"><div class="eico">📋</div><p>אין תצפיות עדיין.<br/>לחץ + להתחיל תצפית חדשה.</p></div>` + fab;
+      return;
+    }
+    const surveys = snap.docs.map(d => ({id:d.id,...d.data()}));
+    const pending  = surveys.filter(s => s.status === 'pending');
+    const complete = surveys.filter(s => s.status === 'complete');
+
+    let html = '';
+    if(pending.length) {
+      html += `<div class="survey-sec-label">ממתינות להשלמה (${pending.length})</div>`;
+      html += pending.map(s => surveyCard(s)).join('');
+    }
+    if(complete.length) {
+      html += `<div class="survey-sec-label" style="margin-top:8px;">הושלמו</div>`;
+      html += complete.map(s => surveyCard(s)).join('');
+    }
+    el.innerHTML = html + fab;
+  }).catch(e => {
+    el.innerHTML = `<div class="empty"><p>שגיאה בטעינה: ${e.message}</p></div>` + fab;
+  });
+}
+
+function surveyCard(s) {
+  const plot = plots.find(p => p.id === s.plotId);
+  const pestCount = Object.keys(s.findings||{}).length;
+  const statusIcon = s.status === 'pending' ? '🕐' : '✅';
+  return `<div class="survey-card ${s.status}" onclick="openSurvey('${s.id}')">
+    <div class="card-body">
+      <div class="card-title">${plot?.name || s.plotName || 'חלקה לא ידועה'} ${s.zone ? '· ' + s.zone : ''}</div>
+      <div class="card-sub">${s.date} ${s.time ? s.time.substring(0,5) : ''} · ${pestCount} מזיקים ${statusIcon}</div>
+    </div>
+    <div style="font-size:20px;">${s.status === 'pending' ? '✏️' : '✅'}</div>
+  </div>`;
+}
+
+// ── Start new survey ────────────────────────────────────────────────
+async function startNewSurvey() {
+  curSurveyId = null;
+  surveyPestData = {};
+  curSurveyPlotId = null;
+  curSurveyZone = '';
+  await buildSurveyForm(null);
+}
+
+// ── Open existing survey ────────────────────────────────────────────
+async function openSurvey(id) {
+  const snap = await db.collection('insp_surveys').doc(id).get();
+  if(!snap.exists) { showToast('תצפית לא נמצאה'); return; }
+  const data = snap.data();
+  curSurveyId = id;
+  surveyPestData = data.findings ? JSON.parse(JSON.stringify(data.findings)) : {};
+  curSurveyPlotId = data.plotId || null;
+  curSurveyZone = data.zone || '';
+  await buildSurveyForm(data);
+}
+
+// ── Build survey form ────────────────────────────────────────────────
+async function buildSurveyForm(existing) {
+  const body = document.getElementById('survey-form-body');
+  const now = new Date();
+  const dateVal = existing?.date || di(now);
+  const timeVal = existing?.time || now.toTimeString().slice(0,5);
+
+  // Detect plot from GPS
+  let detectedPlotId = curSurveyPlotId;
+  let detectedZone = curSurveyZone;
+
+  if(!detectedPlotId) {
+    body.innerHTML = `<div style="text-align:center;padding:20px;color:var(--text-muted);">📡 מזהה מיקום...</div>`;
+    navTo('survey-form');
+    try {
+      const pos = await new Promise((res,rej) => navigator.geolocation.getCurrentPosition(res, rej, {timeout:6000}));
+      const {latitude:lat, longitude:lng} = pos.coords;
+      const found = detectPlotFromGPS(lat, lng);
+      if(found) {
+        detectedPlotId = found.plotId;
+        detectedZone = found.zone;
+        curSurveyPlotId = detectedPlotId;
+        curSurveyZone = detectedZone;
+      }
+    } catch(e) { /* GPS failed — user picks manually */ }
+  }
+
+  renderSurveyForm(dateVal, timeVal, detectedPlotId, detectedZone);
+  navTo('survey-form');
+}
+
+function detectPlotFromGPS(lat, lng) {
+  for(const plot of plots) {
+    if(!plot.polygon?.length) continue;
+    if(pointInPolygon(lat, lng, plot.polygon)) {
+      const zone = calcZoneInPolygon(lat, lng, plot.polygon);
+      return {plotId: plot.id, zone};
+    }
+  }
+  return null;
+}
+
+// Ray-casting point-in-polygon
+function pointInPolygon(lat, lng, polygon) {
+  let inside = false;
+  for(let i=0, j=polygon.length-1; i<polygon.length; j=i++) {
+    const xi=polygon[i].lng, yi=polygon[i].lat;
+    const xj=polygon[j].lng, yj=polygon[j].lat;
+    const intersect = ((yi>lat) !== (yj>lat)) && (lng < (xj-xi)*(lat-yi)/(yj-yi)+xi);
+    if(intersect) inside = !inside;
+  }
+  return inside;
+}
+
+// Calculate zone (N/NE/E/SE/S/SW/W/NW/Center) based on position within polygon bounding box
+function calcZoneInPolygon(lat, lng, polygon) {
+  const lats = polygon.map(p=>p.lat), lngs = polygon.map(p=>p.lng);
+  const minLat=Math.min(...lats), maxLat=Math.max(...lats);
+  const minLng=Math.min(...lngs), maxLng=Math.max(...lngs);
+  const relLat = (lat-minLat)/(maxLat-minLat); // 0=south, 1=north
+  const relLng = (lng-minLng)/(maxLng-minLng); // 0=west, 1=east
+  const centerDist = Math.sqrt((relLat-0.5)**2 + (relLng-0.5)**2);
+  if(centerDist < 0.2) return 'מרכז';
+  const angle = Math.atan2(relLat-0.5, relLng-0.5) * 180/Math.PI;
+  if(angle >= 67.5 || angle < -112.5) return 'מרכז';
+  if(angle >= -22.5 && angle < 22.5)  return 'מזרח';
+  if(angle >= 22.5  && angle < 67.5)  return 'צפון מזרח';
+  if(angle >= 67.5  && angle < 112.5) return 'צפון';
+  if(angle >= 112.5 || angle < -157.5) return 'צפון מערב';
+  if(angle >= -157.5&& angle < -112.5) return 'מערב';
+  if(angle >= -112.5&& angle < -67.5) return 'דרום מערב';
+  if(angle >= -67.5 && angle < -22.5) return 'דרום';
+  return 'דרום מזרח';
+}
+
+const ZONES = ['צפון','צפון מזרח','מזרח','דרום מזרח','דרום','דרום מערב','מערב','צפון מערב','מרכז'];
+
+function renderSurveyForm(dateVal, timeVal, plotId, zone) {
+  const plot = plots.find(p=>p.id===plotId);
+  const crop = plot?.crop || '';
+  surveyCropPests = pests.filter(p => !p.crops?.length || p.crops.includes(crop));
+
+  // Build pest cards HTML
+  const pestCardsHtml = surveyCropPests.length === 0
+    ? `<div class="empty"><div class="eico">🐛</div><p>אין מזיקים מוגדרים לגידול זה.</p></div>`
+    : surveyCropPests.map(pest => {
+        const findings = surveyPestData[pest.id] || {};
+        const hasData = Object.values(findings).some(v=>v>0);
+        return `<div class="pest-survey-card" id="pcard-${pest.id}">
+          <div class="pest-survey-hdr ${hasData?'has-data':''}" onclick="togglePestCard('${pest.id}')">
+            <div>
+              <div class="pest-survey-name">${pest.name}</div>
+              <div class="pest-survey-sample">מדגם: ${pest.sampleRows||0} שורות × ${pest.sampleTrees||0} עצים × ${pest.sampleFruits||0} פירות</div>
+            </div>
+            <span id="pcard-arrow-${pest.id}" style="font-size:18px;color:var(--text-muted);">${hasData?'▲':'▼'}</span>
+          </div>
+          <div class="pest-survey-body" id="pcard-body-${pest.id}" style="display:${hasData?'block':'none'};">
+            ${(pest.checks||[]).map(check => {
+              const val = findings[check]||0;
+              return `<div class="check-row">
+                <div class="check-label">${check}</div>
+                <div class="counter">
+                  <button class="counter-btn minus" onclick="adjustCount('${pest.id}','${check}',-1)">−</button>
+                  <input class="counter-val" type="number" min="0" value="${val}"
+                    id="cnt-${pest.id}-${check.replace(/[^a-zA-Zא-ת0-9]/g,'_')}"
+                    onchange="setCount('${pest.id}','${check}',this.value)"/>
+                  <button class="counter-btn plus" onclick="adjustCount('${pest.id}','${check}',1)">+</button>
+                </div>
+              </div>`;
+            }).join('')}
+          </div>
+        </div>`;
+      }).join('');
+
+  const body = document.getElementById('survey-form-body');
+  body.innerHTML = `
+    <!-- Header -->
+    <div class="survey-hdr-section">
+      <div class="fr">
+        <label class="frl">חלקה</label>
+        <select class="fin" id="sv-plot" onchange="onSurveyPlotChange(this.value)">
+          <option value="">בחר חלקה...</option>
+          ${plots.map(p=>`<option value="${p.id}" ${p.id===plotId?'selected':''}>${p.name} (${p.crop||''})</option>`).join('')}
+        </select>
+      </div>
+      <div class="fr">
+        <label class="frl">אזור בחלקה</label>
+        <div class="zone-grid" id="zone-grid">
+          ${ZONES.map(z=>`<button class="zone-btn ${z===zone?'sel':''}" onclick="selectZone('${z}')">${z}</button>`).join('')}
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;margin-top:8px;">
+        <div class="fr" style="flex:1;">
+          <label class="frl">תאריך</label>
+          <input class="fin" type="date" id="sv-date" value="${dateVal}"/>
+        </div>
+        <div class="fr" style="flex:1;">
+          <label class="frl">שעה</label>
+          <input class="fin" type="time" id="sv-time" value="${timeVal}"/>
+        </div>
+      </div>
+    </div>
+    <!-- Pest cards -->
+    <div id="pest-cards-container">${pestCardsHtml}</div>
+  `;
+}
+
+function togglePestCard(pestId) {
+  const body = document.getElementById('pcard-body-'+pestId);
+  const arrow = document.getElementById('pcard-arrow-'+pestId);
+  if(!body) return;
+  const isOpen = body.style.display !== 'none';
+  body.style.display = isOpen ? 'none' : 'block';
+  if(arrow) arrow.textContent = isOpen ? '▼' : '▲';
+}
+
+function adjustCount(pestId, check, delta) {
+  const key = check.replace(/[^a-zA-Zא-ת0-9]/g,'_');
+  const inp = document.getElementById(`cnt-${pestId}-${key}`);
+  if(!inp) return;
+  const cur = parseInt(inp.value)||0;
+  const newVal = Math.max(0, cur+delta);
+  inp.value = newVal;
+  setCount(pestId, check, newVal);
+}
+
+function setCount(pestId, check, val) {
+  const n = Math.max(0, parseInt(val)||0);
+  if(!surveyPestData[pestId]) surveyPestData[pestId] = {};
+  surveyPestData[pestId][check] = n;
+  // Update card header style
+  const hdr = document.querySelector(`#pcard-${pestId} .pest-survey-hdr`);
+  const hasData = Object.values(surveyPestData[pestId]).some(v=>v>0);
+  if(hdr) hdr.className = `pest-survey-hdr ${hasData?'has-data':''}`;
+}
+
+function selectZone(zone) {
+  curSurveyZone = zone;
+  document.querySelectorAll('.zone-btn').forEach(b => {
+    b.classList.toggle('sel', b.textContent === zone);
+  });
+}
+
+function onSurveyPlotChange(plotId) {
+  curSurveyPlotId = plotId;
+  const plot = plots.find(p=>p.id===plotId);
+  const crop = plot?.crop || '';
+  surveyCropPests = pests.filter(p => !p.crops?.length || p.crops.includes(crop));
+  // Re-render pest cards only
+  const container = document.getElementById('pest-cards-container');
+  if(!container) return;
+  surveyPestData = {};
+  container.innerHTML = surveyCropPests.length === 0
+    ? `<div class="empty"><div class="eico">🐛</div><p>אין מזיקים מוגדרים לגידול זה.</p></div>`
+    : surveyCropPests.map(pest => {
+        return `<div class="pest-survey-card" id="pcard-${pest.id}">
+          <div class="pest-survey-hdr" onclick="togglePestCard('${pest.id}')">
+            <div>
+              <div class="pest-survey-name">${pest.name}</div>
+              <div class="pest-survey-sample">מדגם: ${pest.sampleRows||0} שורות × ${pest.sampleTrees||0} עצים × ${pest.sampleFruits||0} פירות</div>
+            </div>
+            <span id="pcard-arrow-${pest.id}" style="font-size:18px;color:var(--text-muted);">▼</span>
+          </div>
+          <div class="pest-survey-body" id="pcard-body-${pest.id}" style="display:none;">
+            ${(pest.checks||[]).map(check => `<div class="check-row">
+              <div class="check-label">${check}</div>
+              <div class="counter">
+                <button class="counter-btn minus" onclick="adjustCount('${pest.id}','${check}',-1)">−</button>
+                <input class="counter-val" type="number" min="0" value="0"
+                  id="cnt-${pest.id}-${check.replace(/[^a-zA-Zא-ת0-9]/g,'_')}"
+                  onchange="setCount('${pest.id}','${check}',this.value)"/>
+                <button class="counter-btn plus" onclick="adjustCount('${pest.id}','${check}',1)">+</button>
+              </div>
+            </div>`).join('')}
+          </div>
+        </div>`;
+      }).join('');
+}
+
+async function saveSurvey(status) {
+  const plotId = document.getElementById('sv-plot')?.value || curSurveyPlotId || '';
+  const plot = plots.find(p=>p.id===plotId);
+  const date = document.getElementById('sv-date')?.value || di(new Date());
+  const time = document.getElementById('sv-time')?.value || '';
+  // Collect only pests with at least one non-zero count
+  const findings = {};
+  for(const [pestId, checks] of Object.entries(surveyPestData)) {
+    if(Object.values(checks).some(v=>v>0)) findings[pestId] = {...checks};
+  }
+  const data = {
+    plotId, plotName: plot?.name||'', zone: curSurveyZone,
+    date, time, status,
+    findings,
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    updatedBy: auth.currentUser?.email||'',
+  };
+  try {
+    if(curSurveyId) {
+      await db.collection('insp_surveys').doc(curSurveyId).update(data);
+    } else {
+      data.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+      data.createdBy = auth.currentUser?.email||'';
+      const ref = await db.collection('insp_surveys').add(data);
+      curSurveyId = ref.id;
+    }
+    showToast(status==='complete' ? 'התצפית הושלמה ✓' : 'נשמר להמשך');
+    navTo('survey');
+  } catch(e) { showToast('שגיאה בשמירה: '+e.message); }
+}
 
 // ── HELPERS ───────────────────────────────────────────────────────────────────
 function di(d){ return d.toISOString().slice(0,10); }
