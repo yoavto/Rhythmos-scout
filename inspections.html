@@ -215,14 +215,22 @@
       padding:10px 0;border-bottom:1px solid rgba(0,0,0,0.05);}
     .severity-label{font-size:14px;font-weight:500;}
     .severity-btns{display:flex;gap:5px;}
-    .sev-btn{width:36px;height:36px;border-radius:8px;border:1.5px solid var(--border);
-      background:white;font-family:Arial;font-size:14px;font-weight:600;cursor:pointer;
+    .sev-btn{width:30px;height:30px;border-radius:6px;border:1.5px solid var(--border);
+      background:white;font-family:Arial;font-size:13px;font-weight:600;cursor:pointer;
       color:var(--text-muted);display:flex;align-items:center;justify-content:center;}
     .sev-btn.sel-1{background:#27ae60;border-color:#27ae60;color:white;}
     .sev-btn.sel-2{background:#8bc34a;border-color:#8bc34a;color:white;}
     .sev-btn.sel-3{background:#f39c12;border-color:#f39c12;color:white;}
     .sev-btn.sel-4{background:#e67e22;border-color:#e67e22;color:white;}
     .sev-btn.sel-5{background:#c0392b;border-color:#c0392b;color:white;}
+
+  
+    .freq-row{display:flex;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid rgba(0,0,0,0.05);}
+    .freq-label{font-size:13px;font-weight:500;flex-shrink:0;}
+    .freq-input{width:70px;padding:6px 8px;border:1.5px solid var(--border);border-radius:8px;
+      font-size:14px;font-weight:600;font-family:Arial;text-align:center;background:var(--input-bg);
+      outline:none;direction:ltr;}
+    .freq-pct{font-size:12px;color:var(--text-muted);flex-shrink:0;}
 
   </style>
 </head>
@@ -254,13 +262,13 @@
   <div class="gtb-nav" id="gtb-nav">
     <button class="gnav active" id="gnav-survey" onclick="navTo('survey')"><span class="gi">📋</span>תצפיות</button>
     <button class="gnav"        id="gnav-pests"  onclick="navTo('pests')"><span class="gi">🐛</span>מזיקים</button>
-    <button class="gnav"        id="gnav-plots"  onclick="navTo('plots')"><span class="gi">🌿</span>חלקות</button>
+    <button class="gnav"        id="gnav-plots"  onclick="navTo('plots')"><span class="gi" style="display:flex;align-items:center;justify-content:center;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg></span>חלקות</button>
     <button class="gnav"        id="gnav-export" onclick="navTo('export')"><span class="gi">📊</span>דוחות</button>
   </div>
   <div class="gtb-exit-wrap">
-    <div style="display:flex;gap:4px;margin-left:4px;">
-    <button onclick="window.location.href='/'" style="background:none;border:1.5px solid rgba(69,71,74,0.35);border-radius:12px;color:rgb(69,71,74);font-family:Arial,sans-serif;font-size:10px;font-weight:700;cursor:pointer;padding:3px 8px;white-space:nowrap;">מלכודות</button>
-    <button onclick="window.location.href='/inspections'" style="background:var(--teal);border:1.5px solid var(--teal);border-radius:12px;color:white;font-family:Arial,sans-serif;font-size:9px;font-weight:700;cursor:pointer;padding:2px 6px;white-space:nowrap;">תצפיות</button>
+    <div style="display:flex;flex-direction:column;gap:2px;margin-left:4px;">
+    <button onclick="sessionStorage.setItem('rhythmos_just_switched','1');window.location.href='/'" style="background:none;border:1px solid rgba(69,71,74,0.35);border-radius:8px;color:rgb(69,71,74);font-family:Arial,sans-serif;font-size:9px;font-weight:600;cursor:pointer;padding:2px 7px;white-space:nowrap;line-height:1.3;">מלכודות</button>
+    <button onclick="sessionStorage.setItem('rhythmos_just_switched','1');window.location.href='/inspections'" style="background:var(--teal);border:1px solid var(--teal);border-radius:8px;color:white;font-family:Arial,sans-serif;font-size:9px;font-weight:600;cursor:pointer;padding:2px 7px;white-space:nowrap;line-height:1.3;">תצפיות</button>
   </div>
     <button id="back-btn" onclick="goBack()"><span>חזרה</span><span>→</span></button>
     <button id="exit-btn" onclick="doLogout()" title="התנתקות">
@@ -567,12 +575,16 @@ function doLogout() {
 
 auth.onAuthStateChanged(user => {
   if(user) {
+    sessionStorage.removeItem('rhythmos_just_switched');
     document.getElementById('view-login').style.display = 'none';
     document.getElementById('gtb').classList.add('visible');
     document.getElementById('bottom-bar').classList.add('visible');
     loadAll();
   } else {
-    document.getElementById('view-login').style.display = 'flex';
+    // Only show login if we didn't just navigate from the other module
+    if(!sessionStorage.getItem('rhythmos_just_switched')) {
+      document.getElementById('view-login').style.display = 'flex';
+    }
     document.getElementById('gtb').classList.remove('visible');
     document.getElementById('bottom-bar').classList.remove('visible');
     document.querySelectorAll('.view').forEach(el => el.classList.remove('active'));
@@ -1160,12 +1172,6 @@ function renderSurveyForm(dateVal, timeVal, plotId, zone) {
             <span id="pcard-arrow-${pest.id}" style="font-size:18px;color:var(--text-muted);">${hasData?'▲':'▼'}</span>
           </div>
           <div class="pest-survey-body" id="pcard-body-${pest.id}" style="display:${hasData?'block':'none'};">
-            <div class="severity-row">
-              <div class="severity-label">חומרה</div>
-              <div class="severity-btns" id="sev-${pest.id}">
-                ${[1,2,3,4,5].map(n=>{const curSev=(surveyPestData[pest.id]||{})._sev||0;return `<button class="sev-btn ${curSev===n?'sel-'+n:''}" onclick="setSeverity('${pest.id}',${n})">${n}</button>`;}).join('')}
-              </div>
-            </div>
             ${(pest.checks||[]).map(check => {
               const val = findings[check]||0;
               return `<div class="check-row">
@@ -1180,6 +1186,28 @@ function renderSurveyForm(dateVal, timeVal, plotId, zone) {
               </div>`;
             }).join('')}
           </div>
+          <div class="severity-row" style="flex-wrap:wrap;gap:6px;">
+              <div style="display:flex;align-items:center;gap:6px;flex:1;min-width:180px;">
+                <div class="severity-label" style="flex-shrink:0;">חומרה</div>
+                <div class="severity-btns" id="sev-${pest.id}">
+                  ${[1,2,3,4,5].map(n=>{const curSev=(surveyPestData[pest.id]||{})._sev||0;return `<button class="sev-btn ${curSev===n?'sel-'+n:''}" onclick="setSeverity('${pest.id}',${n})">${n}</button>`;}).join('')}
+                </div>
+              </div>
+            </div>
+            <div class="freq-row">
+              <div class="freq-label">שכיחות בעצים</div>
+              <input class="freq-input" type="number" min="0" max="100" placeholder="0"
+                id="freq-trees-${pest.id}"
+                value="${(surveyPestData[pest.id]||{})._freqTrees||''}"
+                onchange="setSurveyFreq('${pest.id}','_freqTrees',this.value)"/>
+              <div class="freq-pct">%</div>
+              <div class="freq-label" style="margin-right:8px;">בפירות</div>
+              <input class="freq-input" type="number" min="0" max="100" placeholder="0"
+                id="freq-fruits-${pest.id}"
+                value="${(surveyPestData[pest.id]||{})._freqFruits||''}"
+                onchange="setSurveyFreq('${pest.id}','_freqFruits',this.value)"/>
+              <div class="freq-pct">%</div>
+            </div>
           <div class="check-row" style="border-bottom:none;padding-bottom:0;">
             <div class="check-label">הערות</div>
             <textarea rows="2" style="flex:1;border:1.5px solid var(--border);border-radius:8px;padding:7px 10px;
@@ -1273,6 +1301,13 @@ function setSeverity(pestId, level) {
   }
 }
 
+
+function setSurveyFreq(pestId, field, val) {
+  if(!surveyPestData[pestId]) surveyPestData[pestId] = {};
+  const n = Math.min(100, Math.max(0, parseInt(val)||0));
+  surveyPestData[pestId][field] = n;
+}
+
 function setSurveyNote(pestId, val) {
   if(!surveyPestData[pestId]) surveyPestData[pestId] = {};
   surveyPestData[pestId]._note = val;
@@ -1336,12 +1371,6 @@ function onSurveyPlotChange(plotId) {
             <span id="pcard-arrow-${pest.id}" style="font-size:18px;color:var(--text-muted);">▼</span>
           </div>
           <div class="pest-survey-body" id="pcard-body-${pest.id}" style="display:none;">
-            <div class="severity-row">
-              <div class="severity-label">חומרה</div>
-              <div class="severity-btns" id="sev-${pest.id}">
-                ${[1,2,3,4,5].map(n=>`<button class="sev-btn" onclick="setSeverity('${pest.id}',${n})">${n}</button>`).join('')}
-              </div>
-            </div>
             ${(pest.checks||[]).map(check => `<div class="check-row">
               <div class="check-label">${check}</div>
               <div class="counter">
@@ -1352,6 +1381,26 @@ function onSurveyPlotChange(plotId) {
                 <button class="counter-btn plus" onclick="adjustCount('${pest.id}','${check}',1)">+</button>
               </div>
             </div>`).join('')}
+            <div class="severity-row" style="flex-wrap:wrap;gap:6px;">
+                <div style="display:flex;align-items:center;gap:6px;flex:1;min-width:180px;">
+                  <div class="severity-label" style="flex-shrink:0;">חומרה</div>
+                  <div class="severity-btns" id="sev-${pest.id}">
+                    ${[1,2,3,4,5].map(n=>`<button class="sev-btn" onclick="setSeverity('${pest.id}',${n})">${n}</button>`).join('')}
+                  </div>
+                </div>
+              </div>
+              <div class="freq-row">
+                <div class="freq-label">שכיחות בעצים</div>
+                <input class="freq-input" type="number" min="0" max="100" placeholder="0"
+                  id="freq-trees-${pest.id}"
+                  onchange="setSurveyFreq('${pest.id}','_freqTrees',this.value)"/>
+                <div class="freq-pct">%</div>
+                <div class="freq-label" style="margin-right:8px;">בפירות</div>
+                <input class="freq-input" type="number" min="0" max="100" placeholder="0"
+                  id="freq-fruits-${pest.id}"
+                  onchange="setSurveyFreq('${pest.id}','_freqFruits',this.value)"/>
+                <div class="freq-pct">%</div>
+              </div>
             <div class="check-row" style="border-bottom:none;padding-bottom:0;">
               <div class="check-label">הערות</div>
               <textarea rows="2" style="flex:1;border:1.5px solid var(--border);border-radius:8px;padding:7px 10px;
@@ -1372,13 +1421,17 @@ async function saveSurvey(status) {
   // Collect only pests with at least one non-zero count
   const findings = {};
   for(const [pestId, checks] of Object.entries(surveyPestData)) {
-    const {_note, _sev, ...countFields} = checks;
+    const {_note, _sev, _freqTrees, _freqFruits, ...countFields} = checks;
     const note = document.getElementById('note-'+pestId)?.value || _note || '';
     const sev = _sev || 0;
-    if(Object.values(countFields).some(v=>v>0) || note || sev) {
+    const freqT = parseInt(document.getElementById('freq-trees-'+pestId)?.value)||_freqTrees||0;
+    const freqF = parseInt(document.getElementById('freq-fruits-'+pestId)?.value)||_freqFruits||0;
+    if(Object.values(countFields).some(v=>v>0) || note || sev || freqT || freqF) {
       findings[pestId] = {...countFields};
       if(note) findings[pestId]._note = note;
       if(sev) findings[pestId]._sev = sev;
+      if(freqT) findings[pestId]._freqTrees = freqT;
+      if(freqF) findings[pestId]._freqFruits = freqF;
     }
   }
   const data = {
@@ -1397,8 +1450,13 @@ async function saveSurvey(status) {
       const ref = await db.collection('insp_surveys').add(data);
       curSurveyId = ref.id;
     }
-    showToast(status==='complete' ? 'התצפית הושלמה ✓' : 'נשמר');
-    navTo('survey');
+    if(status === 'complete') {
+      showToast('התצפית הושלמה ✓');
+      navTo('survey');
+    } else {
+      showToast('נשמר ✓');
+      // Stay in the form — update curSurveyId if new
+    }
   } catch(e) { showToast('שגיאה בשמירה: '+e.message); }
 }
 
