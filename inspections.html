@@ -673,7 +673,7 @@ async function loadPlots() {
 }
 
 async function loadPests() {
-  const snap = await db.collection('insp_pests').orderBy('name').get();
+  const snap = await db.collection('insp_pests').orderBy('sortOrder').orderBy('name').get();
   pests = snap.docs.map(d => ({id:d.id,...d.data()}));
 }
 
@@ -857,6 +857,41 @@ async function confirmImportPlots() {
 // ════════════════════════════════════════════════════════════════════
 // PESTS
 // ════════════════════════════════════════════════════════════════════
+
+async function movePest(id, direction) {
+  const idx = pests.findIndex(p => p.id === id);
+  if(idx < 0) return;
+  const targetIdx = idx + direction;
+  if(targetIdx < 0 || targetIdx >= pests.length) return;
+
+  const p1 = pests[idx];
+  const p2 = pests[targetIdx];
+  const s1 = p1.sortOrder ?? idx;
+  const s2 = p2.sortOrder ?? targetIdx;
+
+  showToast('מעדכן סדר...');
+  try {
+    const batch = db.batch();
+    batch.update(db.collection('insp_pests').doc(p1.id), {sortOrder: s2});
+    batch.update(db.collection('insp_pests').doc(p2.id), {sortOrder: s1});
+    await batch.commit();
+    await loadPests();
+    renderPests();
+    showToast('הסדר עודכן');
+  } catch(e) {
+    // Fallback: set numeric sortOrder for all pests
+    try {
+      const batch2 = db.batch();
+      pests.forEach((p, i) => {
+        batch2.update(db.collection('insp_pests').doc(p.id), {sortOrder: i});
+      });
+      await batch2.commit();
+      // Then do the swap
+      await movePest(id, direction);
+    } catch(e2) { showToast('שגיאה: ' + e2.message); }
+  }
+}
+
 function renderPests() {
   const el = document.getElementById('pests-list');
   const fab = `<div class="fab-wrap"><button class="fab" onclick="openPestForm(null)">+</button></div>`;
@@ -864,7 +899,7 @@ function renderPests() {
     el.innerHTML = fab + `<div class="empty"><div class="eico">🐛</div><p>אין מזיקים מוגדרים.<br/>לחץ + להוספה.</p></div>`;
     return;
   }
-  el.innerHTML = fab + pests.map(p => `
+  el.innerHTML = fab + pests.map((p,i) => `
     <div class="card" onclick="openPestForm('${p.id}')">
       <div class="card-body">
         <div class="card-title">${p.name}</div>
@@ -872,7 +907,11 @@ function renderPests() {
         <div class="card-sub" style="margin-top:2px;">${(p.checks||[]).join(' · ')||'—'}</div>
         <div class="card-sub" style="margin-top:2px;">מדגם: ${p.sampleRows||0} שורות × ${p.sampleTrees||0} עצים × ${p.sampleFruits||0} פירות</div>
       </div>
-      <div class="card-actions"><button class="ia" onclick="event.stopPropagation();openPestForm('${p.id}')">✏️</button></div>
+      <div class="card-actions" style="display:flex;flex-direction:column;gap:4px;align-items:center;">
+        <button class="ia" onclick="event.stopPropagation();movePest('${p.id}',-1)" style="font-size:16px;opacity:${i===0?0.2:1};${i===0?'pointer-events:none;':''}">⬆</button>
+        <button class="ia" onclick="event.stopPropagation();movePest('${p.id}',1)" style="font-size:16px;opacity:${i===pests.length-1?0.2:1};${i===pests.length-1?'pointer-events:none;':''}">⬇</button>
+        <button class="ia" onclick="event.stopPropagation();openPestForm('${p.id}')">✏️</button>
+      </div>
     </div>`).join('');
 }
 
@@ -953,7 +992,7 @@ async function savePest() {
       await db.collection('insp_pests').doc(id).update(data);
     } else {
       data.createdAt = firebase.firestore.FieldValue.serverTimestamp();
-      await db.collection('insp_pests').add(data);
+      data.sortOrder = pests.length; await db.collection('insp_pests').add(data);
     }
     await loadPests();
     renderPests();
@@ -1463,7 +1502,7 @@ function renderSurveyForm(dateVal, timeVal, plotId, zone) {
               <div class="pest-survey-name">${pest.name}</div>
               <div class="pest-survey-sample">מדגם: ${pest.sampleRows||0} שורות × ${pest.sampleTrees||0} עצים × ${pest.sampleFruits||0} פירות</div>
             </div>
-            <span id="pcard-arrow-${pest.id}" style="font-size:18px;color:var(--text-muted);">${hasData?'▲':'▼'}</span>
+            <span id="pcard-arrow-${pest.id}" style="font-size:36px;color:var(--text-muted);line-height:1;">${hasData?'▲':'▼'}</span>
           </div>
           <div class="pest-survey-body" id="pcard-body-${pest.id}" style="display:${hasData?'block':'none'};">
             ${(pest.checks||[]).map(check => {
@@ -1480,7 +1519,7 @@ function renderSurveyForm(dateVal, timeVal, plotId, zone) {
               </div>`;
             }).join('')}
             <div class="inf-row">
-              <div class="inf-label">עצים נגועים</div>
+              <div class="inf-label">🌳 עצים נגועים</div>
               <div class="counter">
                 <button class="counter-btn minus" onclick="adjustInf('${pest.id}','_infTrees',-1,${pest.sampleRows||0},${pest.sampleTrees||0},${pest.sampleFruits||0})">−</button>
                 <input class="counter-val" type="number" min="0" value="${findings._infTrees||0}"
@@ -1490,7 +1529,7 @@ function renderSurveyForm(dateVal, timeVal, plotId, zone) {
               </div>
             </div>
             <div class="inf-row">
-              <div class="inf-label">פירות נגועים</div>
+              <div class="inf-label">🍊 פירות נגועים</div>
               <div class="counter">
                 <button class="counter-btn minus" onclick="adjustInf('${pest.id}','_infFruits',-1,${pest.sampleRows||0},${pest.sampleTrees||0},${pest.sampleFruits||0})">−</button>
                 <input class="counter-val" type="number" min="0" value="${findings._infFruits||0}"
@@ -1500,7 +1539,7 @@ function renderSurveyForm(dateVal, timeVal, plotId, zone) {
               </div>
             </div>
             <div class="inc-row">
-              <div class="inc-label">שכיחות בעצים</div>
+              <div class="inc-label">🌳 שכיחות בעצים</div>
               <input class="inc-input" type="number" min="0" max="100" step="1"
                 id="freq-trees-${pest.id}"
                 value="${findings._freqTrees!=null?findings._freqTrees:''}"
@@ -1508,7 +1547,7 @@ function renderSurveyForm(dateVal, timeVal, plotId, zone) {
               <div class="inc-pct">%</div>
             </div>
             <div class="inc-row">
-              <div class="inc-label">שכיחות בפירות</div>
+              <div class="inc-label">🍊 שכיחות בפירות</div>
               <input class="inc-input" type="number" min="0" max="100" step="1"
                 id="freq-fruits-${pest.id}"
                 value="${findings._freqFruits!=null?findings._freqFruits:''}"
@@ -1721,7 +1760,7 @@ function onSurveyPlotChange(plotId) {
               <div class="pest-survey-name">${pest.name}</div>
               <div class="pest-survey-sample">מדגם: ${pest.sampleRows||0} שורות × ${pest.sampleTrees||0} עצים × ${pest.sampleFruits||0} פירות</div>
             </div>
-            <span id="pcard-arrow-${pest.id}" style="font-size:18px;color:var(--text-muted);">▼</span>
+            <span id="pcard-arrow-${pest.id}" style="font-size:36px;color:var(--text-muted);line-height:1;">▼</span>
           </div>
           <div class="pest-survey-body" id="pcard-body-${pest.id}" style="display:none;">
             ${(pest.checks||[]).map(check => `<div class="check-row">
@@ -1735,7 +1774,7 @@ function onSurveyPlotChange(plotId) {
               </div>
             </div>`).join('')}
             <div class="inf-row">
-              <div class="inf-label">עצים נגועים</div>
+              <div class="inf-label">🌳 עצים נגועים</div>
               <div class="counter">
                 <button class="counter-btn minus" onclick="adjustInf('${pest.id}','_infTrees',-1,${pest.sampleRows||0},${pest.sampleTrees||0},${pest.sampleFruits||0})">−</button>
                 <input class="counter-val" type="number" min="0" value="0" id="inf-trees-${pest.id}"
@@ -1744,7 +1783,7 @@ function onSurveyPlotChange(plotId) {
               </div>
             </div>
             <div class="inf-row">
-              <div class="inf-label">פירות נגועים</div>
+              <div class="inf-label">🍊 פירות נגועים</div>
               <div class="counter">
                 <button class="counter-btn minus" onclick="adjustInf('${pest.id}','_infFruits',-1,${pest.sampleRows||0},${pest.sampleTrees||0},${pest.sampleFruits||0})">−</button>
                 <input class="counter-val" type="number" min="0" value="0" id="inf-fruits-${pest.id}"
@@ -1753,13 +1792,13 @@ function onSurveyPlotChange(plotId) {
               </div>
             </div>
             <div class="inc-row">
-              <div class="inc-label">שכיחות בעצים</div>
+              <div class="inc-label">🌳 שכיחות בעצים</div>
               <input class="inc-input" type="number" min="0" max="100" step="1" placeholder="0"
                 id="freq-trees-${pest.id}" onchange="setSurveyFreq('${pest.id}','_freqTrees',this.value)"/>
               <div class="inc-pct">%</div>
             </div>
             <div class="inc-row">
-              <div class="inc-label">שכיחות בפירות</div>
+              <div class="inc-label">🍊 שכיחות בפירות</div>
               <input class="inc-input" type="number" min="0" max="100" step="1" placeholder="0"
                 id="freq-fruits-${pest.id}" onchange="setSurveyFreq('${pest.id}','_freqFruits',this.value)"/>
               <div class="inc-pct">%</div>
