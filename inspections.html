@@ -1044,10 +1044,6 @@ async function openSurvey(id) {
 
 // ── Build survey form ────────────────────────────────────────────────
 async function buildSurveyForm(existing) {
-  // Pre-populate plot dropdown based on detected/existing plot's crop
-  const _prePlot = plots.find(p=>p.id===plotId);
-  const _preCrop = _prePlot?.crop || '';
-
   const body = document.getElementById('survey-form-body');
   const now = new Date();
   const dateVal = existing?.date || di(now);
@@ -1124,6 +1120,8 @@ function calcZoneInPolygon(lat, lng, polygon) {
 const ZONES = ['צפון','צפון מזרח','מזרח','דרום מזרח','דרום','דרום מערב','מערב','צפון מערב','מרכז'];
 
 function renderSurveyForm(dateVal, timeVal, plotId, zone) {
+  const _prePlot = plots.find(p=>p.id===plotId);
+  const _preCrop = _prePlot?.crop || '';
   const plot = plots.find(p=>p.id===plotId);
   const crop = plot?.crop || '';
   surveyCropPests = pests.filter(p => !p.crops?.length || p.crops.includes(crop));
