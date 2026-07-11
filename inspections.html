@@ -720,11 +720,9 @@ function renderPests() {
     <div class="card" onclick="openPestForm('${p.id}')">
       <div class="card-body">
         <div class="card-title">${p.name}</div>
-        <div class="card-sub">
-          ${(p.crops||[]).join(', ')||'כל הגידולים'} · 
-          ${(p.checks||[]).join(', ')||'—'} · 
-          מדגם: ${p.sampleRows||0}×${p.sampleTrees||0}×${p.sampleFruits||0}
-        </div>
+        <div class="card-sub">${(p.crops||[]).join(', ')||'כל הגידולים'}</div>
+        <div class="card-sub" style="margin-top:2px;">${(p.checks||[]).join(' · ')||'—'}</div>
+        <div class="card-sub" style="margin-top:2px;">מדגם: ${p.sampleRows||0} שורות × ${p.sampleTrees||0} עצים × ${p.sampleFruits||0} פירות</div>
       </div>
       <div class="card-actions"><button class="ia" onclick="event.stopPropagation();openPestForm('${p.id}')">✏️</button></div>
     </div>`).join('') + fab;
@@ -791,18 +789,26 @@ async function savePest() {
   if(!name) { showToast('נא להזין שם מזיק'); return; }
   const crops = [...document.querySelectorAll('#pestf-crops .crop-chip.sel')].map(b=>b.textContent);
   const checks = [...document.querySelectorAll('#pestf-checks input')].map(i=>i.value.trim()).filter(Boolean);
+  const rowsVal  = parseInt(document.getElementById('pestf-rows').value);
+  const treesVal = parseInt(document.getElementById('pestf-trees').value);
+  const fruitsVal= parseInt(document.getElementById('pestf-fruits').value);
   const data = {
     name, crops, checks,
-    sampleRows  : parseInt(document.getElementById('pestf-rows').value)||0,
-    sampleTrees : parseInt(document.getElementById('pestf-trees').value)||0,
-    sampleFruits: parseInt(document.getElementById('pestf-fruits').value)||0,
+    sampleRows  : isNaN(rowsVal)  ? 0 : rowsVal,
+    sampleTrees : isNaN(treesVal) ? 0 : treesVal,
+    sampleFruits: isNaN(fruitsVal)? 0 : fruitsVal,
     updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
   };
   try {
     const id = document.getElementById('pestf-id').value;
-    if(id) await db.collection('insp_pests').doc(id).update(data);
-    else { data.createdAt = firebase.firestore.FieldValue.serverTimestamp(); await db.collection('insp_pests').add(data); }
+    if(id) {
+      await db.collection('insp_pests').doc(id).update(data);
+    } else {
+      data.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+      await db.collection('insp_pests').add(data);
+    }
     await loadPests();
+    renderPests();
     showToast('המזיק נשמר');
     navTo('pests');
   } catch(e) { showToast('שגיאה: '+e.message); }
