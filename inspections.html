@@ -6,6 +6,7 @@
   <title>ריתמוס סקאוט — תצפיות</title>
   <link rel="icon" href="/favicon.png"/>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
@@ -463,10 +464,10 @@
       <div class="sec-title">סינון</div>
       <div class="date-row">
         <div class="fr"><label class="frl">מתאריך</label>
-          <input class="fin" id="ex-from" type="date"/>
+          <input class="fin" id="ex-from" type="text" placeholder="DD/MM/YYYY" pattern="\d{2}/\d{2}/\d{4}"/>
         </div>
         <div class="fr"><label class="frl">עד תאריך</label>
-          <input class="fin" id="ex-to" type="date"/>
+          <input class="fin" id="ex-to" type="text" placeholder="DD/MM/YYYY" pattern="\d{2}/\d{2}/\d{4}"/>
         </div>
       </div>
       <div style="display:flex;gap:10px;margin-top:8px;">
@@ -1019,8 +1020,8 @@ function renderExportPests() {
   }
   // Default dates
   const to = new Date(); const from = new Date(); from.setMonth(from.getMonth()-1);
-  if(!document.getElementById('ex-to').value) document.getElementById('ex-to').value = di(to);
-  if(!document.getElementById('ex-from').value) document.getElementById('ex-from').value = di(from);
+  if(!document.getElementById('ex-to').value) document.getElementById('ex-to').value = isoToDisplay(di(to));
+  if(!document.getElementById('ex-from').value) document.getElementById('ex-from').value = isoToDisplay(di(from));
 
   el.innerHTML = fab + pests.map(p => `
     <div class="chk-item" onclick="togglePestSel('${p.id}')">
@@ -1055,8 +1056,8 @@ function renderExportPests() {
   const el = document.getElementById('ex-pest-list');
   if(!pests.length) { el.innerHTML='<span style="font-size:13px;color:var(--text-muted);">אין מזיקים</span>'; return; }
   const to = new Date(); const from = new Date(); from.setMonth(from.getMonth()-1);
-  if(!document.getElementById('ex-to').value) document.getElementById('ex-to').value = di(to);
-  if(!document.getElementById('ex-from').value) document.getElementById('ex-from').value = di(from);
+  if(!document.getElementById('ex-to').value) document.getElementById('ex-to').value = isoToDisplay(di(to));
+  if(!document.getElementById('ex-from').value) document.getElementById('ex-from').value = isoToDisplay(di(from));
 
   // Populate crop dropdown
   const cropSel = document.getElementById('ex-crop');
@@ -1083,9 +1084,9 @@ function onExportCropChange(crop) {
 
 // ── EXCEL EXPORT (NEW FORMAT) ─────────────────────────────────────────────────
 async function exportExcelNew() {
-  const from = document.getElementById('ex-from').value;
-  const to   = document.getElementById('ex-to').value;
-  if(!from||!to) { showToast('נא לבחור תאריכים'); return; }
+  const from = dateInputVal('ex-from');
+  const to   = dateInputVal('ex-to');
+  if(!from||!to) { showToast('נא לבחור תאריכים (DD/MM/YYYY)'); return; }
   const selPests = getSelPests();
   if(!selPests.length) { showToast('נא לבחור מזיקים'); return; }
   const filterCrop    = document.getElementById('ex-crop')?.value || '';
@@ -1189,38 +1190,49 @@ async function exportExcelNew() {
         });
       });
 
-      const ws = XLSX.utils.aoa_to_sheet(aoa);
+      // Use XLSXStyle for style support, fall back to XLSX
+      const XS = (typeof XLSXStyle !== 'undefined') ? XLSXStyle : XLSX;
+      const ws = XS.utils.aoa_to_sheet(aoa);
 
       // RTL
       ws['!views'] = [{rightToLeft: true}];
 
-      // Column widths (~140px ≈ 18 chars)
-      ws['!cols'] = headers.map(() => ({wch:18}));
+      // Column width: 140px (wpx) for all columns
+      ws['!cols'] = headers.map(() => ({wpx: 140}));
 
-      // Wrap text + top align for all cells
+      // Apply styles to all data cells: wrap text + top align
+      const wrapStyle   = {alignment: {wrapText: true, vertical: 'top'}};
+      const headerStyle = {alignment: {wrapText: true, vertical: 'top'}, font: {bold: true, sz: 11}};
+      const varietyStyle= {alignment: {wrapText: false, vertical: 'middle'}, font: {bold: true, sz: 12}};
+
+      // First pass: apply wrap to all cells
       for(const addr in ws) {
         if(addr[0]==='!') continue;
-        if(!ws[addr].s) ws[addr].s = {};
-        ws[addr].s.alignment = {wrapText:true, vertical:'top'};
+        ws[addr].s = {...wrapStyle};
       }
 
-      // Bold variety header rows
-      let rowIdx = 1; // 0-indexed, skip header row
+      // Header row (row 0): bold
+      headers.forEach((_, c) => {
+        const addr = XS.utils.encode_cell({r:0, c});
+        if(ws[addr]) ws[addr].s = {...headerStyle};
+      });
+
+      // Variety rows: bold, detect rows where only col A has value and no newlines
       aoa.slice(1).forEach((row, i) => {
-        rowIdx = i+1;
-        // Detect variety rows: only first cell has content, rest empty, no \n
-        const isVariety = row[0] && !row[0].includes('\n') && row.slice(1).every(v=>!v);
+        const rowIdx = i + 1;
+        const isVariety = row[0] && !row[0].includes('\n') && row.slice(1).every(v => !v);
         if(isVariety) {
-          const addr = XLSX.utils.encode_cell({r:rowIdx, c:0});
-          if(ws[addr]) { if(!ws[addr].s) ws[addr].s={}; ws[addr].s.font = {bold:true,sz:12}; }
+          const addr = XS.utils.encode_cell({r:rowIdx, c:0});
+          if(ws[addr]) ws[addr].s = {...varietyStyle};
         }
       });
 
-      XLSX.utils.book_append_sheet(wb, ws, crop.substring(0,31));
+      XS.utils.book_append_sheet(wb, ws, crop.substring(0,31));
     });
 
     const dateStr = from.replace(/-/g,'') + '-' + to.replace(/-/g,'');
-    XLSX.writeFile(wb, `\u05d3\u05d5\u05d7 \u05e4\u05d9\u05e7\u05d5\u05d7 \u05e8\u05d9\u05ea\u05de\u05d5\u05e1 ${dateStr}.xlsx`);
+    const XSw = (typeof XLSXStyle !== 'undefined') ? XLSXStyle : XLSX;
+    XSw.writeFile(wb, `\u05d3\u05d5\u05d7 \u05e4\u05d9\u05e7\u05d5\u05d7 \u05e8\u05d9\u05ea\u05de\u05d5\u05e1 ${dateStr}.xlsx`);
     showToast('\u05d4\u05e7\u05d5\u05d1\u05e5 \u05d4\u05d5\u05e8\u05d3');
   } catch(e) { showToast('\u05e9\u05d2\u05d9\u05d0\u05d4: '+e.message); }
 }
@@ -1338,6 +1350,20 @@ async function doRestore() {
 async function loadSurveys() {
   return db.collection('insp_surveys').orderBy('date','desc').limit(100).get();
 }
+
+
+// ── DATE HELPERS ─────────────────────────────────────────────────────────────
+function isoToDisplay(iso) {
+  if(!iso) return '';
+  const p = iso.split('-');
+  return p.length===3 ? p[2]+'/'+p[1]+'/'+p[0] : iso;
+}
+function displayToIso(disp) {
+  if(!disp) return '';
+  const p = disp.split('/');
+  return p.length===3 ? p[2]+'-'+p[1].padStart(2,'0')+'-'+p[0].padStart(2,'0') : disp;
+}
+function dateInputVal(id) { return displayToIso(document.getElementById(id)?.value||''); }
 
 function renderSurveys() {
   const el = document.getElementById('survey-list');
@@ -1595,7 +1621,7 @@ function renderSurveyForm(dateVal, timeVal, plotId, zone) {
       <div style="display:flex;gap:10px;margin-top:8px;">
         <div class="fr" style="flex:1;">
           <label class="frl">תאריך</label>
-          <input class="fin" type="date" id="sv-date" value="${dateVal}"/>
+          <input class="fin" type="text" id="sv-date" placeholder="DD/MM/YYYY" value="${isoToDisplay(dateVal)}" pattern="\d{2}/\d{2}/\d{4}"/>
         </div>
         <div class="fr" style="flex:1;">
           <label class="frl">שעה</label>
@@ -1818,7 +1844,7 @@ function onSurveyPlotChange(plotId) {
 async function saveSurvey(status) {
   const plotId = document.getElementById('sv-plot')?.value || curSurveyPlotId || '';
   const plot = plots.find(p=>p.id===plotId);
-  const date = document.getElementById('sv-date')?.value || di(new Date());
+  const date = dateInputVal('sv-date') || di(new Date());
   const time = document.getElementById('sv-time')?.value || '';
   // Collect only pests with at least one non-zero count
   const findings = {};
