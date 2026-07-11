@@ -28,15 +28,15 @@
       box-shadow:0 2px 8px rgba(0,0,0,0.08);z-index:1000;align-items:center;
     }
     #gtb.visible{display:flex;}
-    .gtb-logo-wrap{position:absolute;right:8px;top:50%;transform:translateY(-50%);}
-    .gtb-logo{height:auto;width:auto;max-height:26px;max-width:80px;display:block;object-fit:contain;}
+    .gtb-logo-wrap{position:absolute;right:4px;top:50%;transform:translateY(-50%);}
+    .gtb-logo{height:auto;width:auto;max-height:22px;max-width:70px;display:block;object-fit:contain;}
     @media(min-width:600px){.gtb-logo{max-height:32px;max-width:140px;}}
-    .gtb-exit-wrap{position:absolute;left:8px;top:50%;transform:translateY(-50%);display:flex;align-items:center;gap:6px;}
+    .gtb-exit-wrap{position:absolute;left:4px;top:50%;transform:translateY(-50%);display:flex;align-items:center;gap:3px;}
     .gtb-nav{flex:1;display:flex;justify-content:center;align-items:center;gap:2px;}
-    .gnav{background:none;border:none;font-family:Arial,sans-serif;font-size:10px;font-weight:500;
-      color:var(--text-muted);cursor:pointer;padding:3px 6px;border-radius:8px;
-      display:flex;flex-direction:column;align-items:center;gap:1px;transition:all 0.15s;white-space:nowrap;}
-    .gnav .gi{font-size:16px;}
+    .gnav{background:none;border:none;font-family:Arial,sans-serif;font-size:9px;font-weight:500;
+      color:var(--text-muted);cursor:pointer;padding:2px 4px;border-radius:6px;
+      display:flex;flex-direction:column;align-items:center;gap:0;transition:all 0.15s;white-space:nowrap;}
+    .gnav .gi{font-size:15px;}
     .gnav.active{background:rgba(137,10,10,0.1);color:var(--red);font-weight:700;}
     #back-btn{display:none;align-items:center;gap:4px;padding:4px 8px;background:white;
       border:1.5px solid var(--red);border-radius:8px;font-family:Arial,sans-serif;
@@ -260,7 +260,7 @@
   <div class="gtb-exit-wrap">
     <div style="display:flex;gap:4px;margin-left:4px;">
     <button onclick="window.location.href='/'" style="background:none;border:1.5px solid rgba(69,71,74,0.35);border-radius:12px;color:rgb(69,71,74);font-family:Arial,sans-serif;font-size:10px;font-weight:700;cursor:pointer;padding:3px 8px;white-space:nowrap;">מלכודות</button>
-    <button onclick="window.location.href='/inspections'" style="background:var(--teal);border:1.5px solid var(--teal);border-radius:12px;color:white;font-family:Arial,sans-serif;font-size:10px;font-weight:700;cursor:pointer;padding:3px 8px;white-space:nowrap;">תצפיות</button>
+    <button onclick="window.location.href='/inspections'" style="background:var(--teal);border:1.5px solid var(--teal);border-radius:12px;color:white;font-family:Arial,sans-serif;font-size:9px;font-weight:700;cursor:pointer;padding:2px 6px;white-space:nowrap;">תצפיות</button>
   </div>
     <button id="back-btn" onclick="goBack()"><span>חזרה</span><span>→</span></button>
     <button id="exit-btn" onclick="doLogout()" title="התנתקות">
@@ -1163,7 +1163,7 @@ function renderSurveyForm(dateVal, timeVal, plotId, zone) {
             <div class="severity-row">
               <div class="severity-label">חומרה</div>
               <div class="severity-btns" id="sev-${pest.id}">
-                ${[1,2,3,4,5].map(n=>{const curSev=(surveyPestData[pest.id]||{}).__sev__||0;return `<button class="sev-btn ${curSev===n?'sel-'+n:''}" onclick="setSeverity('${pest.id}',${n})">${n}</button>`;}).join('')}
+                ${[1,2,3,4,5].map(n=>{const curSev=(surveyPestData[pest.id]||{})._sev||0;return `<button class="sev-btn ${curSev===n?'sel-'+n:''}" onclick="setSeverity('${pest.id}',${n})">${n}</button>`;}).join('')}
               </div>
             </div>
             ${(pest.checks||[]).map(check => {
@@ -1185,7 +1185,7 @@ function renderSurveyForm(dateVal, timeVal, plotId, zone) {
             <textarea rows="2" style="flex:1;border:1.5px solid var(--border);border-radius:8px;padding:7px 10px;
               font-size:13px;font-family:Arial;background:var(--input-bg);outline:none;resize:none;margin-right:12px;"
               id="note-${pest.id}"
-              onchange="setSurveyNote('${pest.id}',this.value)">${(surveyPestData[pest.id]||{}).__note__||''}</textarea>
+              onchange="setSurveyNote('${pest.id}',this.value)">${(surveyPestData[pest.id]||{})._note||''}</textarea>
           </div>
         </div>`;
       }).join('');
@@ -1255,7 +1255,7 @@ function adjustCount(pestId, check, delta) {
 
 function setSeverity(pestId, level) {
   if(!surveyPestData[pestId]) surveyPestData[pestId] = {};
-  surveyPestData[pestId].__sev__ = level;
+  surveyPestData[pestId]._sev = level;
   // Update button styles
   const container = document.getElementById('sev-'+pestId);
   if(!container) return;
@@ -1275,7 +1275,7 @@ function setSeverity(pestId, level) {
 
 function setSurveyNote(pestId, val) {
   if(!surveyPestData[pestId]) surveyPestData[pestId] = {};
-  surveyPestData[pestId].__note__ = val;
+  surveyPestData[pestId]._note = val;
 }
 
 function setCount(pestId, check, val) {
@@ -1372,13 +1372,13 @@ async function saveSurvey(status) {
   // Collect only pests with at least one non-zero count
   const findings = {};
   for(const [pestId, checks] of Object.entries(surveyPestData)) {
-    const {__note__, __sev__, ...countFields} = checks;
-    const note = document.getElementById('note-'+pestId)?.value || __note__ || '';
-    const sev = __sev__ || 0;
+    const {_note, _sev, ...countFields} = checks;
+    const note = document.getElementById('note-'+pestId)?.value || _note || '';
+    const sev = _sev || 0;
     if(Object.values(countFields).some(v=>v>0) || note || sev) {
       findings[pestId] = {...countFields};
-      if(note) findings[pestId].__note__ = note;
-      if(sev) findings[pestId].__sev__ = sev;
+      if(note) findings[pestId]._note = note;
+      if(sev) findings[pestId]._sev = sev;
     }
   }
   const data = {
