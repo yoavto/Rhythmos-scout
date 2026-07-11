@@ -202,7 +202,10 @@
     <button class="gnav"        id="gnav-export" onclick="navTo('export')"><span class="gi">📊</span>דוחות</button>
   </div>
   <div class="gtb-exit-wrap">
-    <button id="mode-btn" onclick="goToTraps()">מלכודות</button>
+    <div style="display:flex;gap:3px;margin-left:4px;">
+    <button onclick="window.location.href='/'" style="background:none;border:1.5px solid rgba(69,71,74,0.35);border-radius:12px 0 0 12px;color:rgb(69,71,74);font-family:Arial,sans-serif;font-size:10px;font-weight:700;cursor:pointer;padding:3px 8px;white-space:nowrap;">מלכודות</button>
+    <button onclick="window.location.href='/inspections'" style="background:var(--teal);border:1.5px solid var(--teal);border-radius:0 12px 12px 0;color:white;font-family:Arial,sans-serif;font-size:10px;font-weight:700;cursor:pointer;padding:3px 8px;white-space:nowrap;">תצפיות</button>
+  </div>
     <button id="back-btn" onclick="goBack()"><span>חזרה</span><span>→</span></button>
     <button id="exit-btn" onclick="doLogout()" title="התנתקות">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
