@@ -197,7 +197,7 @@
   </div>
   <div class="gtb-exit-wrap">
     <div style="display:flex;gap:3px;margin-left:4px;">
-    <button onclick="window.location.href='/'" style="background:var(--red);border:1.5px solid var(--red);border-radius:12px 0 0 12px;color:white;font-family:Arial,sans-serif;font-size:10px;font-weight:700;cursor:pointer;padding:3px 8px;white-space:nowrap;">מלכודות</button>
+    <button style="background:var(--red);border:1.5px solid var(--red);border-radius:12px 0 0 12px;color:white;font-family:Arial,sans-serif;font-size:10px;font-weight:700;cursor:default;padding:3px 8px;white-space:nowrap;">מלכודות</button>
     <button onclick="window.location.href='/inspections'" style="background:none;border:1.5px solid rgba(69,71,74,0.35);border-radius:0 12px 12px 0;color:rgb(69,71,74);font-family:Arial,sans-serif;font-size:10px;font-weight:700;cursor:pointer;padding:3px 8px;white-space:nowrap;">תצפיות</button>
   </div>
     <button id="back-btn" onclick="goBack()"><span>חזרה</span><span>→</span></button>
@@ -522,9 +522,25 @@ function saveMapPickLocation(){
   showV('trap-form');updateTopBar('trap-form');
   showToast('המיקום נשמר');
 }
-function navTo(s){navToInner(s);}
+function navTo(s){
+  curView=s;
+  showV(s);
+  if(s==='insects')renderInsects();
+  if(s==='traps')renderTraps();
+  if(s==='export')prepExport();
+  if(s==='map'&&map)setTimeout(()=>google.maps.event.trigger(map,'resize'),50);
+  updateTopBar(s);
+}
 function showV(n){curView=n;document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));const el=document.getElementById('view-'+n);if(el){el.classList.add('active');if(n!=='login'){el.style.top=GTB_H+'px';el.style.bottom=BAR_H+'px';}else{el.style.top='0';el.style.bottom='0';}}updateTopBar(n);}
-function updateTopBar(v){navToInner(v);}
+function updateTopBar(v){
+  const MAIN=['map','traps','insects','export'];
+  MAIN.forEach(t=>{const b=document.getElementById('gnav-'+t);if(b)b.classList.toggle('active',t===v);});
+  const bb=document.getElementById('back-btn');
+  const eb=document.getElementById('exit-btn');
+  const isMain=MAIN.includes(v);
+  if(bb)bb.style.display=isMain?'none':'flex';
+  if(eb)eb.style.display=isMain?'flex':'none';
+}
 function goBack(){navTo(BACK[curView]||'map');}
 async function loadInsects(){const s=await db.collection('insects').orderBy('createdAt').get();insects=s.docs.map(d=>({id:d.id,...d.data()}));}
 function renderInsects(){const el=document.getElementById('insects-list');const fab='<div class="fab-inline"><button class="fab" onclick="openInsectForm(null)">+</button></div>';if(!insects.length){el.innerHTML='<div class="empty"><div class="eico">🐛</div><p>אין מזיקים מוגדרים.<br>לחץ + להוספה.</p></div>'+fab;return;}el.innerHTML=insects.map(i=>`<div class="card" onclick="openInsectForm('${i.id}')" style="border-right-color:${i.color}"><div class="cdot" style="background:${i.color}"></div><div class="cb"><div class="ct">${i.name}</div><div class="cs">${i.fields.map(f=>f.label).join(' • ')}</div></div><div class="ca"><button class="ia" onclick="event.stopPropagation();openInsectForm('${i.id}')">✏️</button></div></div>`).join('')+fab;}
