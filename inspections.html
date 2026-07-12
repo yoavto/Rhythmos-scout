@@ -1019,7 +1019,7 @@ function renderExportPests() {
     return;
   }
   // Default dates
-  const to = new Date(); const from = new Date(); from.setMonth(from.getMonth()-1);
+  const to = new Date(); const from = new Date(); from.setDate(from.getDate()-7);
   if(!document.getElementById('ex-to').value) document.getElementById('ex-to').value = isoToDisplay(di(to));
   if(!document.getElementById('ex-from').value) document.getElementById('ex-from').value = isoToDisplay(di(from));
 
@@ -1055,7 +1055,7 @@ function getSelPests() {
 function renderExportPests() {
   const el = document.getElementById('ex-pest-list');
   if(!pests.length) { el.innerHTML='<span style="font-size:13px;color:var(--text-muted);">אין מזיקים</span>'; return; }
-  const to = new Date(); const from = new Date(); from.setMonth(from.getMonth()-1);
+  const to = new Date(); const from = new Date(); from.setDate(from.getDate()-7);
   if(!document.getElementById('ex-to').value) document.getElementById('ex-to').value = isoToDisplay(di(to));
   if(!document.getElementById('ex-from').value) document.getElementById('ex-from').value = isoToDisplay(di(from));
 
@@ -1069,8 +1069,9 @@ function renderExportPests() {
 
   el.innerHTML = pests.map(p => `
     <div class="chk-item" onclick="togglePestSel('${p.id}')">
-      <input type="checkbox" id="exck-${p.id}" ${savedPestSel[p.id]!==false?'checked':''}>
-      <label for="exck-${p.id}">${p.name}</label>
+      <input type="checkbox" id="exck-${p.id}" ${savedPestSel[p.id]!==false?'checked':''}
+        onclick="event.stopPropagation();togglePestSel('${p.id}')">
+      <label for="exck-${p.id}" onclick="event.stopPropagation();togglePestSel('${p.id}')">${p.name}</label>
     </div>`).join('');
 }
 
