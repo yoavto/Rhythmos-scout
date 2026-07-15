@@ -335,7 +335,7 @@ let selColor='#c0392b',dynFields=[],selTrapIns=null;
 let mapPickMode=false,mapPickMarker=null,curView='map';
 const BACK={'insects':'map','insect-form':'insects','traps':'map','trap-form':'traps','inspection':'map','export':'map'};
 const COLORS=['#c0392b','#e67e22','#f1c40f','#27ae60','#2980b9','#8e44ad','#16a085','#2c3e50','#e91e63','#795548'];
-const GTB_H=70,BAR_H=8;
+const GTB_H=70,BAR_H=56;
 
 auth.onAuthStateChanged(u=>{
   const gtb=document.getElementById('gtb'),bar=document.getElementById('bottom-bar');
@@ -366,7 +366,7 @@ function loadMaps(){
 window.initApp=async function(){await loadInsects();await loadTraps();showV('map');setTimeout(initMap,150);};
 function initMap(){
   document.getElementById('map-wrap').style.top='0';
-  document.getElementById('map-wrap').style.bottom='0';
+  document.getElementById('map-wrap').style.bottom='56px';
   map=new google.maps.Map(document.getElementById('map-container'),{center:{lat:31.8,lng:34.9},zoom:13,mapTypeId:'hybrid',disableDefaultUI:true,gestureHandling:'greedy',clickableIcons:false});
   // Center to user's location on load + show blue dot
   if(navigator.geolocation){
