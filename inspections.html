@@ -1132,9 +1132,13 @@ async function exportExcelNew() {
         const {_note,_sev,_freqTrees,_freqFruits,_infTrees,_infFruits,...counts} = f;
         const total = Object.values(counts).reduce((s,v)=>s+(parseInt(v)||0),0);
         const lines = [];
+        Object.entries(counts).forEach(([name,val]) => {
+          const n = parseInt(val)||0;
+          if(n) lines.push(name+': '+n);
+        });
+        if(total) lines.push('\u05e1\u05d4"\u05db '+total);
         if(freqT) lines.push(freqT+'% \u05de\u05d4\u05e2\u05e6\u05d9\u05dd');
         if(freqF) lines.push(freqF+'% \u05de\u05d4\u05e4\u05d9\u05e8\u05d5\u05ea');
-        if(total) lines.push('\u05e1\u05d4"\u05db '+total);
         if(sev)   lines.push('\u05d7\u05d5\u05de\u05e8\u05d4 '+sev);
         if(note)  lines.push(note);
         return lines.join('\n');
