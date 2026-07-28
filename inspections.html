@@ -1012,45 +1012,6 @@ async function deletePest() {
 // ════════════════════════════════════════════════════════════════════
 // EXPORT
 // ════════════════════════════════════════════════════════════════════
-function renderExportPests() {
-  const el = document.getElementById('ex-pest-list');
-  if(!pests.length) {
-    el.innerHTML = '<span style="font-size:13px;color:var(--text-muted);">אין מזיקים מוגדרים</span>';
-    return;
-  }
-  // Default dates
-  const to = new Date(); const from = new Date(); from.setDate(from.getDate()-7);
-  if(!document.getElementById('ex-to').value) document.getElementById('ex-to').value = isoToDisplay(di(to));
-  if(!document.getElementById('ex-from').value) document.getElementById('ex-from').value = isoToDisplay(di(from));
-
-  el.innerHTML = fab + pests.map(p => `
-    <div class="chk-item" onclick="togglePestSel('${p.id}')">
-      <input type="checkbox" id="exck-${p.id}" ${savedPestSel[p.id]!==false?'checked':''}>
-      <label for="exck-${p.id}">${p.name}</label>
-    </div>`).join('');
-}
-
-function togglePestSel(id) {
-  const cb = document.getElementById('exck-'+id);
-  if(cb) { cb.checked = !cb.checked; savedPestSel[id] = cb.checked; }
-}
-
-function selectAllPests(val) {
-  pests.forEach(p => {
-    const cb = document.getElementById('exck-'+p.id);
-    if(cb) { cb.checked = val; savedPestSel[p.id] = val; }
-  });
-}
-
-function getSelPests() {
-  return pests.filter(p => {
-    const cb = document.getElementById('exck-'+p.id);
-    savedPestSel[p.id] = cb ? cb.checked : savedPestSel[p.id] !== false;
-    return savedPestSel[p.id] !== false;
-  });
-}
-
-
 // ── EXPORT CROP/VARIETY FILTERS ───────────────────────────────────────────────
 function renderExportPests() {
   const el = document.getElementById('ex-pest-list');
@@ -1068,11 +1029,41 @@ function renderExportPests() {
   }
 
   el.innerHTML = pests.map(p => `
-    <div class="chk-item" onclick="togglePestSel('${p.id}')">
+    <div class="chk-item" onclick="rowClickPestSel('${p.id}', event)">
       <input type="checkbox" id="exck-${p.id}" ${savedPestSel[p.id]!==false?'checked':''}
-        onclick="event.stopPropagation();togglePestSel('${p.id}')">
-      <label for="exck-${p.id}" onclick="event.stopPropagation();togglePestSel('${p.id}')">${p.name}</label>
+        onchange="togglePestSel('${p.id}')">
+      <label for="exck-${p.id}">${p.name}</label>
     </div>`).join('');
+}
+
+// Row click only intervenes when the click landed on the row's empty padding
+// (not the checkbox or label, which already toggle natively via onchange above).
+// This avoids the old double-toggle bug where a manual flip fought the browser's
+// own native toggle and canceled it out.
+function rowClickPestSel(id, evt) {
+  if (evt.target.closest('input,label')) return;
+  const cb = document.getElementById('exck-'+id);
+  if (cb) cb.click();
+}
+
+function togglePestSel(id) {
+  const cb = document.getElementById('exck-'+id);
+  if (cb) savedPestSel[id] = cb.checked;
+}
+
+function selectAllPests(val) {
+  pests.forEach(p => {
+    const cb = document.getElementById('exck-'+p.id);
+    if (cb) { cb.checked = val; savedPestSel[p.id] = val; }
+  });
+}
+
+function getSelPests() {
+  return pests.filter(p => {
+    const cb = document.getElementById('exck-'+p.id);
+    savedPestSel[p.id] = cb ? cb.checked : savedPestSel[p.id] !== false;
+    return savedPestSel[p.id] !== false;
+  });
 }
 
 function onExportCropChange(crop) {
