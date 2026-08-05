@@ -257,7 +257,7 @@
       color:var(--text-muted);display:flex;align-items:center;justify-content:center;}
 
     /* ── PEST COLOR ── */
-    .pest-color-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-top:6px;}
+    .pest-color-grid{display:grid;grid-template-columns:repeat(8,1fr);gap:10px;margin-top:6px;}
     .pest-color-swatch{width:30px;height:30px;border-radius:50%;cursor:pointer;border:2.5px solid transparent;
       box-shadow:0 1px 4px rgba(0,0,0,0.2);padding:0;}
     .pest-color-swatch.sel{border-color:var(--text);box-shadow:0 0 0 2px white inset,0 1px 4px rgba(0,0,0,0.35);}
@@ -274,18 +274,30 @@
     .obs-plot-hdr{background:white;border-radius:var(--radius);padding:14px;margin-bottom:12px;
       box-shadow:0 1px 6px rgba(0,0,0,0.05);}
     .obs-crop-line{font-size:13px;color:var(--text-muted);margin-top:8px;}
-    .obs-pest-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:2px 0 14px;}
-    .obs-pest-btn{aspect-ratio:1;border-radius:16px;border:none;color:white;font-family:Arial,sans-serif;
-      font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center;
-      text-align:center;padding:10px;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,0.18);
-      -webkit-user-select:none;user-select:none;touch-action:none;transition:transform 0.12s,box-shadow 0.12s;}
-    .obs-pest-btn.obs-dragging{opacity:0.85;transform:scale(1.06);box-shadow:0 8px 22px rgba(0,0,0,0.35);z-index:5;}
+    .obs-pest-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:2px 0 14px;}
+    .obs-pest-btn{aspect-ratio:1;border-radius:18px;border:2px solid rgba(255,255,255,0.3);
+      font-family:Arial,sans-serif;font-size:19px;font-weight:800;line-height:1.25;
+      display:flex;align-items:center;justify-content:center;text-align:center;padding:12px;cursor:pointer;
+      box-shadow:0 4px 0 rgba(0,0,0,0.22),0 6px 14px rgba(0,0,0,0.22),inset 0 1px 0 rgba(255,255,255,0.35);
+      -webkit-user-select:none;user-select:none;touch-action:pan-y;
+      transition:transform 0.1s,box-shadow 0.1s;}
+    .obs-pest-btn:active{transform:translateY(2px);
+      box-shadow:0 2px 0 rgba(0,0,0,0.22),0 3px 8px rgba(0,0,0,0.2),inset 0 1px 0 rgba(255,255,255,0.3);}
+    .obs-pest-btn.obs-dragging{opacity:0.9;transform:scale(1.06);
+      box-shadow:0 8px 22px rgba(0,0,0,0.35);z-index:5;}
     .obs-hint{font-size:11px;color:var(--text-muted);text-align:center;padding:2px 10px 10px;}
     .obs-report-hdr{font-size:14px;color:var(--text-muted);margin-bottom:10px;line-height:1.6;}
     .obs-report-hdr b{color:var(--text);}
     .obs-note{width:100%;min-height:160px;padding:12px;border:1.5px solid var(--border);border-radius:10px;
       font-size:14px;font-family:Arial,sans-serif;background:var(--input-bg);outline:none;resize:vertical;}
     .obs-note:focus{border-color:var(--red);}
+    .obs-reco{width:100%;min-height:90px;padding:12px;border:1.5px solid var(--border);border-radius:10px;
+      font-size:14px;font-family:Arial,sans-serif;background:var(--input-bg);outline:none;resize:vertical;}
+    .obs-reco:focus{border-color:var(--teal);}
+    .req-mark{color:var(--red);margin-right:3px;}
+    .obs-loc-btn{display:inline-flex;align-items:center;gap:5px;background:none;border:none;
+      color:var(--teal);font-family:Arial,sans-serif;font-size:12px;font-weight:600;cursor:pointer;
+      padding:4px 0;margin-top:2px;}
 
   </style>
 </head>
@@ -318,7 +330,7 @@
     <button class="gnav"        id="gnav-export" onclick="navTo('export')"><span class="gi">📊</span>דוחות</button>
   </div>
   <div class="gtb-nav" id="gtb-nav-obs" style="display:none;">
-    <button class="gnav" id="obsnav-home"   onclick="navTo('obs-home')"><span class="gi">👁</span>תצפית חדשה</button>
+    <button class="gnav" id="obsnav-home"   onclick="startObservation()"><span class="gi">👁</span>תצפית חדשה</button>
     <button class="gnav" id="obsnav-list"   onclick="navTo('obs-list')"><span class="gi">📋</span>תצפיות</button>
     <button class="gnav" id="obsnav-export" onclick="navTo('obs-export')"><span class="gi">📊</span>דוחות</button>
   </div>
@@ -603,11 +615,22 @@ let savedPestSel = {};  // saved pest checkbox state for export
 // Rich color palette offered when defining a pest's identifying color
 const PEST_COLORS = [
   '#e53935','#d81b60','#8e24aa','#3949ab','#1e88e5','#00acc1',
-  '#00897b','#43a047','#c0ca33','#ffb300','#fb8c00','#6d4c41'
+  '#00897b','#43a047','#c0ca33','#ffb300','#fb8c00','#6d4c41',
+  '#000000','#bdbdbd','#c8ad7f','#f06292'
 ];
 const PEST_DEFAULT_COLOR = '#9e9e9e';
 function pestColor(pest) { return pest?.color || PEST_DEFAULT_COLOR; }
 function pestDot(pest) { return `<span class="pest-dot" style="background:${pestColor(pest)};"></span>`; }
+
+// Picks readable black/white text for a given background color (needed once light
+// swatches like light-gray/beige/pink were added to the palette)
+function contrastTextColor(hex) {
+  const c = (hex||'').replace('#','');
+  if(c.length !== 6) return '#ffffff';
+  const r = parseInt(c.substr(0,2),16), g = parseInt(c.substr(2,2),16), b = parseInt(c.substr(4,2),16);
+  const lum = (0.299*r + 0.587*g + 0.114*b) / 255;
+  return lum > 0.6 ? '#1a1a1a' : '#ffffff';
+}
 
 // ── OBSERVATIONS (תצפיות) STATE ─────────────────────────────────────────────
 let obsPlotId = null, obsLat = null, obsLng = null;
@@ -2101,10 +2124,14 @@ if('serviceWorker' in navigator){
 
 let obsFormToken = 0;        // bumped each time a new "תצפית חדשה" session starts, to discard stale/late GPS results
 let obsUserPickedPlot = false; // true once the user manually chooses a plot — background GPS must not override it
+let obsPlotSelectFocused = false; // true while the plot <select> is open/focused
+let obsPendingGpsApply = null;    // queued {token, plotId} if GPS resolved while the dropdown was open
 
 function startObservation() {
   obsPlotId = null; obsLat = null; obsLng = null;
   obsUserPickedPlot = false;
+  obsPlotSelectFocused = false;
+  obsPendingGpsApply = null;
   obsFormToken++;
   const myToken = obsFormToken;
   navTo('obs-form');
@@ -2119,12 +2146,23 @@ async function detectObsLocation(token) {
     const {latitude:lat, longitude:lng} = pos.coords;
     obsLat = lat; obsLng = lng;
     const found = detectPlotFromGPS(lat, lng);
-    if(found) obsPlotId = found.plotId;
-    renderObsForm(false);
+    applyObsGpsResult(token, found ? found.plotId : null);
   } catch(e) {
     if(token !== obsFormToken || obsUserPickedPlot) return;
-    renderObsForm(false); // GPS failed/timed out — just drop the "detecting" hint, field stays editable
+    applyObsGpsResult(token, null); // GPS failed/timed out — just drop the "detecting" hint, field stays editable
   }
+}
+
+// Applies a background GPS result, unless the user has already picked a plot manually,
+// or the plot dropdown is currently open (in which case it's queued for when it closes).
+function applyObsGpsResult(token, foundPlotId) {
+  if(token !== obsFormToken || obsUserPickedPlot) return;
+  if(obsPlotSelectFocused) {
+    obsPendingGpsApply = {token, plotId: foundPlotId};
+    return;
+  }
+  if(foundPlotId) obsPlotId = foundPlotId;
+  renderObsForm(false);
 }
 
 function renderObsForm(detecting) {
@@ -2151,6 +2189,18 @@ function renderObsForm(detecting) {
     </div>
     <div id="obs-pest-grid-wrap"></div>
   `;
+  const sel = document.getElementById('obs-plot-select');
+  if(sel) {
+    sel.addEventListener('focus', () => { obsPlotSelectFocused = true; });
+    sel.addEventListener('blur', () => {
+      obsPlotSelectFocused = false;
+      const pending = obsPendingGpsApply;
+      obsPendingGpsApply = null;
+      if(pending && pending.token === obsFormToken && !obsUserPickedPlot) {
+        applyObsGpsResult(pending.token, pending.plotId);
+      }
+    });
+  }
   renderObsPestGrid(crop);
 }
 
@@ -2188,7 +2238,7 @@ function renderObsPestGrid(crop) {
     <div class="obs-pest-grid" id="obs-pest-grid">
       ${list.map(p => `
         <button type="button" class="obs-pest-btn" data-pest-id="${p.id}"
-          style="background:${pestColor(p)};" onclick="onObsPestClick('${p.id}')">${p.name}</button>
+          style="background:${pestColor(p)};color:${contrastTextColor(pestColor(p))};" onclick="onObsPestClick('${p.id}')">${p.name}</button>
       `).join('')}
     </div>
     <div class="obs-hint">💡 לחיצה ארוכה על מזיק מאפשרת לגרור ולסדר לפי סדר עדיפות</div>
@@ -2265,26 +2315,35 @@ function onObsPestClick(pestId) {
 }
 
 // ── Free-text observation report ────────────────────────────────────────────
-function renderObsReportBody(prefillNote) {
+function renderObsReportBody(prefillNote, prefillReco) {
   const plot = plots.find(p=>p.id===obsPlotId);
   const pest = pests.find(p=>p.id===obsSelectedPestId);
   const body = document.getElementById('obs-report-body');
+  const hasLoc = (obsLat!=null && obsLng!=null);
   body.innerHTML = `
     <div class="section">
       <div class="obs-report-hdr">
         חלקה: <b>${plot?.name||''}</b>${plot?.crop?' · '+plot.crop:''}${plot?.variety?' · '+plot.variety:''}<br/>
         מזיק: <b>${pestDot(pest)}${pest?.name||''}</b>
       </div>
-      <label class="frl">הערות</label>
+      ${hasLoc ? `<button type="button" class="obs-loc-btn" onclick="openObsLocationMap()">📍 הצג מיקום על המפה</button>` : ''}
+      <label class="frl"><span class="req-mark">*</span>תצפית</label>
       <textarea class="obs-note" id="obs-note" placeholder="תיאור חופשי של התצפית...">${escapeHtml(prefillNote)}</textarea>
+      <label class="frl" style="margin-top:12px;">המלצות</label>
+      <textarea class="obs-reco" id="obs-reco" placeholder="המלצות (לא חובה)...">${escapeHtml(prefillReco)}</textarea>
     </div>
   `;
+}
+
+function openObsLocationMap() {
+  if(obsLat == null || obsLng == null) { showToast('אין מיקום שמור לתצפית זו'); return; }
+  window.open(`https://www.google.com/maps?q=${obsLat},${obsLng}`, '_blank');
 }
 
 function openObsReportForm(pestId) {
   obsSelectedPestId = pestId;
   obsEditRecordId = null;
-  renderObsReportBody('');
+  renderObsReportBody('', '');
   navTo('obs-report');
 }
 
@@ -2298,7 +2357,7 @@ async function openObsRecordEdit(id) {
     obsSelectedPestId = data.pestId || null;
     obsLat = (data.location && data.location.latitude != null) ? data.location.latitude : null;
     obsLng = (data.location && data.location.longitude != null) ? data.location.longitude : null;
-    renderObsReportBody(data.note || '');
+    renderObsReportBody(data.note || '', data.recommendations || '');
     navTo('obs-report');
   } catch(e) { showToast('שגיאה בטעינה: '+e.message); }
 }
@@ -2309,13 +2368,14 @@ function cancelObsReport() {
 
 async function saveObsReport() {
   const note = document.getElementById('obs-note').value.trim();
-  if(!note) { showToast('נא להזין הערות'); return; }
+  const reco = document.getElementById('obs-reco').value.trim();
+  if(!note) { showToast('נא למלא את שדה התצפית'); return; }
 
   if(obsEditRecordId) {
-    // Editing an existing record: update the note only, keep its original date/time/plot/pest
+    // Editing an existing record: update text fields only, keep its original date/time/plot/pest
     try {
       await db.collection('obs_records').doc(obsEditRecordId).update({
-        note,
+        note, recommendations: reco,
         updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
       });
       showToast('התצפית עודכנה ✓');
@@ -2331,7 +2391,7 @@ async function saveObsReport() {
   const data = {
     plotId: obsPlotId, plotName: plot?.name||'', crop: plot?.crop||'', variety: plot?.variety||'',
     pestId: obsSelectedPestId, pestName: pest?.name||'',
-    note,
+    note, recommendations: reco,
     date: di(now), time: now.toTimeString().slice(0,5),
     location: (obsLat!=null && obsLng!=null) ? new firebase.firestore.GeoPoint(obsLat, obsLng) : null,
     createdAt: firebase.firestore.FieldValue.serverTimestamp(),
