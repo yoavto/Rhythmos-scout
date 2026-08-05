@@ -12,7 +12,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
   <style>
     :root{
-      --red:rgb(137,10,10);--teal:rgb(19,79,92);--text:rgb(69,71,74);
+      --red:rgb(137,10,10);--teal:rgb(19,79,92);--teal-dark:#0d3840;--text:rgb(69,71,74);
       --text-muted:rgba(69,71,74,0.6);--border:rgba(137,10,10,0.18);
       --white:#ffffff;--cream:rgb(255,255,255);--input-bg:rgb(235,235,236);
       --shadow:0 4px 20px rgba(137,10,10,0.1);--radius:12px;
@@ -722,6 +722,9 @@ function navTo(v) {
     const b = document.getElementById('obsnav-'+t.replace('obs-',''));
     if(b) b.classList.toggle('active', t===v);
   });
+  // "תצפית חדשה" has no dedicated landing view anymore (it jumps straight into obs-form),
+  // so treat the whole new-observation flow (form + its report screen) as "active" for it.
+  document.getElementById('obsnav-home')?.classList.toggle('active', v==='obs-form' || v==='obs-report');
 
   // Keep bottom-nav highlight + top bar in sync with which mode's views we're in
   if(OBS_VIEWS.includes(v)) {
@@ -2175,15 +2178,15 @@ if('serviceWorker' in navigator){
         💾 ייצא גיבוי מלא (JSON)
       </button>
       <input type="file" id="obs-restore-file" accept=".json" style="display:none" onchange="onObsRestoreFileChosen(event)"/>
-      <button onclick="document.getElementById('obs-restore-file').click()" style="width:100%;padding:10px;background:white;border:1.5px solid rgba(137,10,10,0.4);border-radius:8px;font-family:Arial;font-size:13px;font-weight:600;color:var(--red);cursor:pointer;">
+      <button onclick="document.getElementById('obs-restore-file').click()" style="width:100%;padding:10px;background:white;border:1.5px solid var(--teal);border-radius:8px;font-family:Arial;font-size:13px;font-weight:600;color:var(--teal);cursor:pointer;">
         📂 העלה קובץ גיבוי
       </button>
       <div id="obs-restore-preview" style="display:none;margin-top:10px;">
         <div style="background:var(--input-bg);border-radius:8px;padding:12px;font-size:13px;margin-bottom:8px;" id="obs-restore-summary"></div>
-        <div style="background:#fff3cd;border:1.5px solid #e6a817;border-radius:8px;padding:10px;font-size:12px;color:#7a4f00;margin-bottom:8px;">
+        <div style="background:rgba(19,79,92,0.08);border:1.5px solid var(--teal);border-radius:8px;padding:10px;font-size:12px;color:var(--teal-dark);margin-bottom:8px;">
           ⚠️ שחזור ימחק את כל נתוני התצפיות הקיימים (obs_records). גיבוי אוטומטי יישמר לפני הפעולה.
         </div>
-        <button style="width:100%;padding:11px;background:var(--red);color:white;border:none;border-radius:8px;font-family:Arial;font-size:14px;font-weight:700;cursor:pointer;" onclick="doObsRestore()">⚠️ שחזר</button>
+        <button style="width:100%;padding:11px;background:var(--teal-dark);color:white;border:none;border-radius:8px;font-family:Arial;font-size:14px;font-weight:700;cursor:pointer;" onclick="doObsRestore()">⚠️ שחזר</button>
         <button class="btn-sec" style="width:100%;margin-top:6px;" onclick="cancelObsRestore()">ביטול</button>
       </div>
     </div>
