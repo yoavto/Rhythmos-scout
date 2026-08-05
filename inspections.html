@@ -287,7 +287,7 @@
     .obs-report-hdr b{color:var(--text);}
     .obs-note{width:100%;min-height:160px;padding:12px;border:1.5px solid var(--border);border-radius:10px;
       font-size:14px;font-family:Arial,sans-serif;background:var(--input-bg);outline:none;resize:vertical;}
-    .obs-note:focus{border-color:var(--red);}
+    .obs-note:focus{border-color:var(--teal);}
     .obs-reco{width:100%;min-height:90px;padding:12px;border:1.5px solid var(--border);border-radius:10px;
       font-size:14px;font-family:Arial,sans-serif;background:var(--input-bg);outline:none;resize:vertical;}
     .obs-reco:focus{border-color:var(--teal);}
@@ -311,12 +311,16 @@
     .obs-td-pest{font-weight:700;background:rgba(19,79,92,0.04);white-space:nowrap;min-width:auto;}
 
     /* ── OBSERVATIONS MODE THEME — scoped to body.mode-obs so Samples/Traps are untouched ── */
+    body.mode-obs{--border:rgba(19,79,92,0.18);--shadow:0 4px 20px rgba(19,79,92,0.1);}
     body.mode-obs .view.active{background:#e9f4f4;}
     body.mode-obs .fin:focus,
     body.mode-obs .fi:focus{border-color:var(--teal);}
     body.mode-obs input[type="checkbox"]{accent-color:var(--teal);}
+    body.mode-obs .chk-item input[type=checkbox]{accent-color:var(--teal) !important;}
     body.mode-obs .btn-sav{background:var(--teal);}
     body.mode-obs .chk-item{background:white;}
+    body.mode-obs .mtitle{color:var(--teal-dark);}
+    body.mode-obs .btn-mok{background:var(--teal-dark);}
 
   </style>
 </head>
