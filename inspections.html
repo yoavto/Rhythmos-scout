@@ -35,6 +35,8 @@
       display:flex;flex-direction:column;align-items:center;gap:2px;transition:all 0.15s;white-space:nowrap;}
     .gnav .gi{font-size:21px;}
     .gnav.active{background:rgba(137,10,10,0.08);color:var(--red);font-weight:700;}
+    #gtb-nav-obs .gnav{background:rgba(19,79,92,0.14);color:var(--teal);}
+    #gtb-nav-obs .gnav.active{background:var(--teal);color:white;}
     #exit-btn{background:none;border:none;cursor:pointer;padding:6px;color:rgba(69,71,74,0.5);
       width:34px;height:34px;display:flex;align-items:center;justify-content:center;border-radius:50%;flex-shrink:0;}
     #exit-btn svg{width:20px;height:20px;transform:scaleX(-1);}
@@ -59,6 +61,7 @@
       transition:all 0.15s;
     }
     .bnav-btn.active{color:var(--red);font-weight:700;background:rgba(137,10,10,0.08);}
+    #bnav-obs.active{color:var(--teal);background:rgba(19,79,92,0.08);}
     .bnav-icon{font-size:22px;line-height:1;}
     
     /* ── BOTTOM BAR ── */
@@ -306,6 +309,14 @@
     .obs-preview-table th{background:rgba(19,79,92,0.08);font-weight:700;position:sticky;top:0;}
     .obs-th-sub{font-weight:400;font-size:11px;color:var(--text-muted);}
     .obs-td-pest{font-weight:700;background:rgba(19,79,92,0.04);white-space:nowrap;min-width:auto;}
+
+    /* ── OBSERVATIONS MODE THEME — scoped to body.mode-obs so Samples/Traps are untouched ── */
+    body.mode-obs .view.active{background:#e9f4f4;}
+    body.mode-obs .fin:focus,
+    body.mode-obs .fi:focus{border-color:var(--teal);}
+    body.mode-obs input[type="checkbox"]{accent-color:var(--teal);}
+    body.mode-obs .btn-sav{background:var(--teal);}
+    body.mode-obs .chk-item{background:white;}
 
   </style>
 </head>
@@ -719,12 +730,14 @@ function navTo(v) {
     document.getElementById('bnav-samples')?.classList.remove('active');
     document.getElementById('gtb-nav').style.display = 'none';
     document.getElementById('gtb-nav-obs').style.display = 'flex';
+    document.body.classList.add('mode-obs');
   } else {
     curMode = 'samples';
     document.getElementById('bnav-samples')?.classList.add('active');
     document.getElementById('bnav-obs')?.classList.remove('active');
     document.getElementById('gtb-nav').style.display = 'flex';
     document.getElementById('gtb-nav-obs').style.display = 'none';
+    document.body.classList.remove('mode-obs');
   }
 
   if(v==='plots')     renderPlots();
