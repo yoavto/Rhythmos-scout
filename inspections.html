@@ -317,6 +317,11 @@
     <button class="gnav"        id="gnav-plots"  onclick="navTo('plots')"><span class="gi">📍</span>חלקות</button>
     <button class="gnav"        id="gnav-export" onclick="navTo('export')"><span class="gi">📊</span>דוחות</button>
   </div>
+  <div class="gtb-nav" id="gtb-nav-obs" style="display:none;">
+    <button class="gnav" id="obsnav-home"   onclick="navTo('obs-home')"><span class="gi">👁</span>תצפית חדשה</button>
+    <button class="gnav" id="obsnav-list"   onclick="navTo('obs-list')"><span class="gi">📋</span>תצפיות</button>
+    <button class="gnav" id="obsnav-export" onclick="navTo('obs-export')"><span class="gi">📊</span>דוחות</button>
+  </div>
   <button id="exit-btn" onclick="doLogout()" title="התנתקות"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></button>
 </div>
 <div id="bottom-nav">
@@ -618,8 +623,9 @@ const BACK = {
   'obs-form'    : 'obs-home',
   'obs-report'  : 'obs-form',
 };
-const MAIN_VIEWS = ['plots','pests','survey','export','obs-home'];
-const OBS_VIEWS  = ['obs-home','obs-form','obs-report'];
+const MAIN_VIEWS = ['plots','pests','survey','export','obs-home','obs-list','obs-export'];
+const OBS_VIEWS  = ['obs-home','obs-form','obs-report','obs-list','obs-export'];
+const OBS_MAIN_VIEWS = ['obs-home','obs-list','obs-export'];
 
 // ── NAVIGATION ────────────────────────────────────────────────────────────────
 
@@ -665,6 +671,10 @@ function navTo(v) {
     const b = document.getElementById('gnav-'+t);
     if(b) b.classList.toggle('active', t===v);
   });
+  OBS_MAIN_VIEWS.forEach(t => {
+    const b = document.getElementById('obsnav-'+t.replace('obs-',''));
+    if(b) b.classList.toggle('active', t===v);
+  });
 
   // Keep bottom-nav highlight + top bar in sync with which mode's views we're in
   if(OBS_VIEWS.includes(v)) {
@@ -672,11 +682,13 @@ function navTo(v) {
     document.getElementById('bnav-obs')?.classList.add('active');
     document.getElementById('bnav-samples')?.classList.remove('active');
     document.getElementById('gtb-nav').style.display = 'none';
+    document.getElementById('gtb-nav-obs').style.display = 'flex';
   } else {
     curMode = 'samples';
     document.getElementById('bnav-samples')?.classList.add('active');
     document.getElementById('bnav-obs')?.classList.remove('active');
     document.getElementById('gtb-nav').style.display = 'flex';
+    document.getElementById('gtb-nav-obs').style.display = 'none';
   }
 
   if(v==='plots')     renderPlots();
@@ -684,6 +696,7 @@ function navTo(v) {
   if(v==='survey')    renderSurveys();
   if(v==='export')    renderExportPests();
   if(v==='obs-home')  { /* static big-button screen — nothing to render */ }
+  if(v==='obs-list')  renderObsList();
 }
 
 function goBack() {
@@ -2062,6 +2075,20 @@ if('serviceWorker' in navigator){
   </div>
 </div>
 
+<div class="view" id="view-obs-list">
+  <div class="sc" id="obs-list-body"></div>
+</div>
+
+<div class="view" id="view-obs-export">
+  <div class="sc" style="display:flex;align-items:center;justify-content:center;">
+    <div class="empty">
+      <div class="eico">📊</div>
+      <p style="font-size:16px;font-weight:600;color:var(--text);">דוחות תצפיות</p>
+      <p>מודול זה בפיתוח</p>
+    </div>
+  </div>
+</div>
+
 <script>
 // ════════════════════════════════════════════════════════════════════
 // OBSERVATIONS (תצפיות)
@@ -2240,10 +2267,12 @@ async function saveObsReport() {
   if(!note) { showToast('נא להזין הערות'); return; }
   const plot = plots.find(p=>p.id===obsPlotId);
   const pest = pests.find(p=>p.id===obsSelectedPestId);
+  const now = new Date();
   const data = {
     plotId: obsPlotId, plotName: plot?.name||'', crop: plot?.crop||'', variety: plot?.variety||'',
     pestId: obsSelectedPestId, pestName: pest?.name||'',
     note,
+    date: di(now), time: now.toTimeString().slice(0,5),
     location: (obsLat!=null && obsLng!=null) ? new firebase.firestore.GeoPoint(obsLat, obsLng) : null,
     createdAt: firebase.firestore.FieldValue.serverTimestamp(),
     createdBy: auth.currentUser?.email || '',
@@ -2253,6 +2282,84 @@ async function saveObsReport() {
     showToast('התצפית נשמרה ✓');
     navTo('obs-form'); // back to the pest grid for the same plot, ready for the next one
   } catch(e) { showToast('שגיאה בשמירה: '+e.message); }
+}
+
+// ── Observations list (grouped by date + plot) ──────────────────────────────
+let obsListSort = 'date'; // 'date' | 'plot' — primary sort key; the other is always the secondary key
+
+function setObsListSort(mode) {
+  obsListSort = mode;
+  renderObsList();
+}
+
+async function renderObsList() {
+  const el = document.getElementById('obs-list-body');
+  el.innerHTML = `<div style="text-align:center;padding:30px;color:var(--text-muted);">טוען...</div>`;
+  try {
+    const snap = await db.collection('obs_records').orderBy('date','desc').limit(300).get();
+    if(snap.empty) {
+      el.innerHTML = obsListSortBar() + `<div class="empty"><div class="eico">👁</div><p>אין תצפיות עדיין.<br/>לחץ על "תצפית חדשה" כדי להתחיל.</p></div>`;
+      return;
+    }
+    const records = snap.docs.map(d => ({id:d.id, ...d.data()}));
+
+    // Group by date+plot so same-date/same-plot observations sit together
+    const groups = {};
+    records.forEach(r => {
+      const key = r.date + '||' + (r.plotName||'');
+      if(!groups[key]) groups[key] = {date:r.date, plotName:r.plotName||'חלקה לא ידועה', items:[]};
+      groups[key].items.push(r);
+    });
+    let groupList = Object.values(groups);
+
+    groupList.sort((a,b) => {
+      if(obsListSort === 'date') {
+        return b.date.localeCompare(a.date) || a.plotName.localeCompare(b.plotName,'he');
+      } else {
+        return a.plotName.localeCompare(b.plotName,'he') || b.date.localeCompare(a.date);
+      }
+    });
+
+    el.innerHTML = obsListSortBar() + groupList.map(g => {
+      const dateDisp = g.date ? g.date.split('-').reverse().join('/') : '';
+      const items = [...g.items].sort((a,b) => (a.time||'').localeCompare(b.time||''));
+      return `
+        <div class="survey-sec-label">${dateDisp} · ${g.plotName}</div>
+        ${items.map(r => obsRecordCard(r)).join('')}
+      `;
+    }).join('');
+  } catch(e) {
+    el.innerHTML = obsListSortBar() + `<div class="empty"><p>שגיאה בטעינה: ${e.message}</p></div>`;
+  }
+}
+
+function obsListSortBar() {
+  return `<div class="crop-chips" style="margin:0 0 12px;">
+    <button type="button" class="crop-chip${obsListSort==='date'?' sel':''}" onclick="setObsListSort('date')">מיין לפי תאריך</button>
+    <button type="button" class="crop-chip${obsListSort==='plot'?' sel':''}" onclick="setObsListSort('plot')">מיין לפי חלקה</button>
+  </div>`;
+}
+
+function obsRecordCard(r) {
+  const pest = pests.find(p=>p.id===r.pestId);
+  const color = pest ? pestColor(pest) : (r.pestId ? PEST_DEFAULT_COLOR : null);
+  return `<div class="card" style="cursor:default;">
+    <div class="card-body">
+      <div class="card-title">${color?`<span class="pest-dot" style="background:${color};"></span>`:''}${r.pestName||'ללא מזיק'} · ${r.time||''}</div>
+      <div class="card-sub" style="white-space:normal;overflow:visible;">${r.note||''}</div>
+    </div>
+    <button class="ia" onclick="deleteObsRecord('${r.id}')" style="font-size:20px;flex-shrink:0;padding:4px 8px;">🗑</button>
+  </div>`;
+}
+
+function deleteObsRecord(id) {
+  showConfirm('מחיקת תצפית','האם למחוק את התצפית? פעולה זו אינה ניתנת לביטול.', async () => {
+    try {
+      await db.collection('obs_records').doc(id).delete();
+      renderObsList();
+      showToast('התצפית נמחקה');
+    } catch(e) { showToast('שגיאה: '+e.message); }
+  });
 }
 </script>
 
