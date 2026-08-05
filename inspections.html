@@ -256,6 +256,37 @@
       background:white;font-family:Arial;font-size:14px;font-weight:600;cursor:pointer;
       color:var(--text-muted);display:flex;align-items:center;justify-content:center;}
 
+    /* ── PEST COLOR ── */
+    .pest-color-grid{display:grid;grid-template-columns:repeat(8,1fr);gap:10px;margin-top:6px;}
+    .pest-color-swatch{width:30px;height:30px;border-radius:50%;cursor:pointer;border:2.5px solid transparent;
+      box-shadow:0 1px 4px rgba(0,0,0,0.2);padding:0;}
+    .pest-color-swatch.sel{border-color:var(--text);box-shadow:0 0 0 2px white inset,0 1px 4px rgba(0,0,0,0.35);}
+    .pest-dot{display:inline-block;width:11px;height:11px;border-radius:50%;margin-left:7px;
+      vertical-align:middle;flex-shrink:0;box-shadow:0 0 0 1px rgba(0,0,0,0.1) inset;}
+
+    /* ── OBSERVATIONS (תצפיות) ── */
+    #view-obs-home{align-items:center;justify-content:center;}
+    .obs-big-btn{width:190px;height:190px;border-radius:28px;background:var(--teal);color:white;
+      border:none;box-shadow:0 6px 22px rgba(19,79,92,0.4);cursor:pointer;
+      display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;
+      font-family:Arial,sans-serif;font-size:17px;font-weight:700;}
+    .obs-big-btn .obs-big-ico{font-size:52px;}
+    .obs-plot-hdr{background:white;border-radius:var(--radius);padding:14px;margin-bottom:12px;
+      box-shadow:0 1px 6px rgba(0,0,0,0.05);}
+    .obs-crop-line{font-size:13px;color:var(--text-muted);margin-top:8px;}
+    .obs-pest-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:2px 0 14px;}
+    .obs-pest-btn{aspect-ratio:1;border-radius:16px;border:none;color:white;font-family:Arial,sans-serif;
+      font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center;
+      text-align:center;padding:10px;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,0.18);
+      -webkit-user-select:none;user-select:none;touch-action:none;transition:transform 0.12s,box-shadow 0.12s;}
+    .obs-pest-btn.obs-dragging{opacity:0.85;transform:scale(1.06);box-shadow:0 8px 22px rgba(0,0,0,0.35);z-index:5;}
+    .obs-hint{font-size:11px;color:var(--text-muted);text-align:center;padding:2px 10px 10px;}
+    .obs-report-hdr{font-size:14px;color:var(--text-muted);margin-bottom:10px;line-height:1.6;}
+    .obs-report-hdr b{color:var(--text);}
+    .obs-note{width:100%;min-height:160px;padding:12px;border:1.5px solid var(--border);border-radius:10px;
+      font-size:14px;font-family:Arial,sans-serif;background:var(--input-bg);outline:none;resize:vertical;}
+    .obs-note:focus{border-color:var(--red);}
+
   </style>
 </head>
 <body>
@@ -397,6 +428,13 @@
       <div class="sec-title">גידולים רלוונטיים</div>
       <p style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">בחר את הגידולים שבהם יש לחפש מזיק זה</p>
       <div class="crop-chips" id="pestf-crops"></div>
+    </div>
+
+    <div class="section">
+      <div class="sec-title">צבע מזיק</div>
+      <p style="font-size:12px;color:var(--text-muted);margin-bottom:2px;">משמש לזיהוי המזיק בדיווחי מדגם ובכפתורי תצפיות</p>
+      <input type="hidden" id="pestf-color"/>
+      <div class="pest-color-grid" id="pestf-color-grid"></div>
     </div>
 
     <div class="section">
@@ -557,13 +595,32 @@ let importPlotsData = [];
 let curSurveyId=null,surveyPestData={},curSurveyPlotId=null,curSurveyZone='',surveyCropPests=[];
 let savedPestSel = {};  // saved pest checkbox state for export
 
+// Rich color palette offered when defining a pest's identifying color
+const PEST_COLORS = [
+  '#e53935','#d81b60','#8e24aa','#5e35b1','#3949ab','#1e88e5','#039be5','#00acc1',
+  '#00897b','#43a047','#7cb342','#c0ca33','#fdd835','#ffb300','#fb8c00','#f4511e',
+  '#6d4c41','#757575','#546e7a','#c62828','#ad1457','#4527a0','#283593','#01579b'
+];
+const PEST_DEFAULT_COLOR = '#9e9e9e';
+function pestColor(pest) { return pest?.color || PEST_DEFAULT_COLOR; }
+function pestDot(pest) { return `<span class="pest-dot" style="background:${pestColor(pest)};"></span>`; }
+
+// ── OBSERVATIONS (תצפיות) STATE ─────────────────────────────────────────────
+let obsPlotId = null, obsLat = null, obsLng = null;
+let obsPestOrderMap = {};   // {pestId: orderIndex} — separate from Samples' insp_pests.sortOrder
+let obsSelectedPestId = null;
+let obsJustDragged = false;
+
 const BACK = {
   'plot-form'   : 'plots',
   'plots-import': 'plots',
   'pest-form'   : 'pests',
   'survey-form' : 'survey',
+  'obs-form'    : 'obs-home',
+  'obs-report'  : 'obs-form',
 };
-const MAIN_VIEWS = ['plots','pests','survey','export'];
+const MAIN_VIEWS = ['plots','pests','survey','export','obs-home'];
+const OBS_VIEWS  = ['obs-home','obs-form','obs-report'];
 
 // ── NAVIGATION ────────────────────────────────────────────────────────────────
 
@@ -571,20 +628,7 @@ const MAIN_VIEWS = ['plots','pests','survey','export'];
 let curMode = 'samples'; // 'samples' | 'obs'
 
 function switchToMode(mode) {
-  curMode = mode;
-  document.querySelectorAll('.bnav-btn').forEach(b => b.classList.remove('active'));
-  if(mode === 'samples') {
-    document.getElementById('bnav-samples')?.classList.add('active');
-    document.getElementById('gtb-nav').style.display = 'flex';
-    navTo('survey');
-  } else if(mode === 'obs') {
-    document.getElementById('bnav-obs')?.classList.add('active');
-    document.getElementById('gtb-nav').style.display = 'none';
-    // Show placeholder
-    document.querySelectorAll('.view').forEach(el => el.classList.remove('active'));
-    const el = document.getElementById('view-obs');
-    if(el) el.classList.add('active');
-  }
+  navTo(mode === 'obs' ? 'obs-home' : 'survey');
 }
 
 function goToTraps() {
@@ -623,10 +667,24 @@ function navTo(v) {
     if(b) b.classList.toggle('active', t===v);
   });
 
-  if(v==='plots')  renderPlots();
-  if(v==='pests')  renderPests();
-  if(v==='survey') renderSurveys();
-  if(v==='export') renderExportPests();
+  // Keep bottom-nav highlight + top bar in sync with which mode's views we're in
+  if(OBS_VIEWS.includes(v)) {
+    curMode = 'obs';
+    document.getElementById('bnav-obs')?.classList.add('active');
+    document.getElementById('bnav-samples')?.classList.remove('active');
+    document.getElementById('gtb-nav').style.display = 'none';
+  } else {
+    curMode = 'samples';
+    document.getElementById('bnav-samples')?.classList.add('active');
+    document.getElementById('bnav-obs')?.classList.remove('active');
+    document.getElementById('gtb-nav').style.display = 'flex';
+  }
+
+  if(v==='plots')     renderPlots();
+  if(v==='pests')     renderPests();
+  if(v==='survey')    renderSurveys();
+  if(v==='export')    renderExportPests();
+  if(v==='obs-home')  { /* static big-button screen — nothing to render */ }
 }
 
 function goBack() {
@@ -672,8 +730,15 @@ auth.onAuthStateChanged(user => {
 
 // ── LOAD DATA ─────────────────────────────────────────────────────────────────
 async function loadAll() {
-  await Promise.all([loadPlots(), loadPests()]);
+  await Promise.all([loadPlots(), loadPests(), loadObsPestOrder()]);
   navTo('survey');
+}
+
+async function loadObsPestOrder() {
+  try {
+    const doc = await db.collection('obs_meta').doc('pestOrder').get();
+    obsPestOrderMap = doc.exists ? (doc.data().order || {}) : {};
+  } catch(e) { obsPestOrderMap = {}; }
 }
 
 async function loadPlots() {
@@ -897,7 +962,7 @@ function renderPests() {
   el.innerHTML = fab + pests.map((p,i) => `
     <div class="card" onclick="openPestForm('${p.id}')">
       <div class="card-body">
-        <div class="card-title">${p.name}</div>
+        <div class="card-title">${pestDot(p)}${p.name}</div>
         <div class="card-sub">${(p.crops||[]).join(', ')||'כל הגידולים'}</div>
         <div class="card-sub" style="margin-top:2px;">${(p.checks||[]).join(' · ')||'—'}</div>
         <div class="card-sub" style="margin-top:2px;">מדגם: ${p.sampleRows||0} שורות × ${p.sampleTrees||0} עצים × ${p.sampleFruits||0} פירות</div>
@@ -922,6 +987,7 @@ function openPestForm(id) {
   // Populate crop chips from plots
   const uniqueCrops = [...new Set(plots.map(p=>p.crop).filter(Boolean))].sort();
   let selCrops = new Set();
+  let curColor = '';
   if(id) {
     const pest = pests.find(x=>x.id===id);
     if(pest) {
@@ -930,13 +996,29 @@ function openPestForm(id) {
       document.getElementById('pestf-trees').value = pest.sampleTrees||'';
       document.getElementById('pestf-fruits').value = pest.sampleFruits||'';
       selCrops = new Set(pest.crops||[]);
+      curColor = pest.color || '';
       (pest.checks||[]).forEach(c => addPestCheckRow(c));
     }
   } else {
     addPestCheckRow('');
   }
   renderCropChips(uniqueCrops, selCrops);
+  renderPestColorSwatches(curColor);
   navTo('pest-form');
+}
+
+function renderPestColorSwatches(selectedColor) {
+  document.getElementById('pestf-color').value = selectedColor || '';
+  const el = document.getElementById('pestf-color-grid');
+  el.innerHTML = PEST_COLORS.map(c => `
+    <button type="button" class="pest-color-swatch${c===selectedColor?' sel':''}"
+      style="background:${c};" data-color="${c}" onclick="selectPestColor('${c}')"></button>`).join('');
+}
+function selectPestColor(c) {
+  document.getElementById('pestf-color').value = c;
+  document.querySelectorAll('#pestf-color-grid .pest-color-swatch').forEach(b => {
+    b.classList.toggle('sel', b.dataset.color === c);
+  });
 }
 
 function renderCropChips(crops, selCrops) {
@@ -974,8 +1056,9 @@ async function savePest() {
   const rowsVal  = parseInt(document.getElementById('pestf-rows').value);
   const treesVal = parseInt(document.getElementById('pestf-trees').value);
   const fruitsVal= parseInt(document.getElementById('pestf-fruits').value);
+  const color = document.getElementById('pestf-color').value || '';
   const data = {
-    name, crops, checks,
+    name, crops, checks, color,
     sampleRows  : isNaN(rowsVal)  ? 0 : rowsVal,
     sampleTrees : isNaN(treesVal) ? 0 : treesVal,
     sampleFruits: isNaN(fruitsVal)? 0 : fruitsVal,
@@ -1520,7 +1603,7 @@ function renderSurveyForm(dateVal, timeVal, plotId, zone) {
         return `<div class="pest-survey-card" id="pcard-${pest.id}">
           <div class="pest-survey-hdr ${hasData?'has-data':''}" onclick="togglePestCard('${pest.id}')">
             <div>
-              <div class="pest-survey-name">${pest.name}</div>
+              <div class="pest-survey-name">${pestDot(pest)}${pest.name}</div>
               <div class="pest-survey-sample">מדגם: ${pest.sampleRows||0} שורות × ${pest.sampleTrees||0} עצים × ${pest.sampleFruits||0} פירות</div>
             </div>
             <span id="pcard-arrow-${pest.id}" style="font-size:36px;color:var(--text-muted);line-height:1;">${hasData?'▲':'▼'}</span>
@@ -1778,7 +1861,7 @@ function onSurveyPlotChange(plotId) {
         return `<div class="pest-survey-card" id="pcard-${pest.id}">
           <div class="pest-survey-hdr" onclick="togglePestCard('${pest.id}')">
             <div>
-              <div class="pest-survey-name">${pest.name}</div>
+              <div class="pest-survey-name">${pestDot(pest)}${pest.name}</div>
               <div class="pest-survey-sample">מדגם: ${pest.sampleRows||0} שורות × ${pest.sampleTrees||0} עצים × ${pest.sampleFruits||0} פירות</div>
             </div>
             <span id="pcard-arrow-${pest.id}" style="font-size:36px;color:var(--text-muted);line-height:1;">▼</span>
@@ -1926,14 +2009,225 @@ if('serviceWorker' in navigator){
 }
 </script>
 
-<div class="view" id="view-obs">
-  <div class="sc" style="display:flex;align-items:center;justify-content:center;">
-    <div class="empty">
-      <div class="eico">👁</div>
-      <p style="font-size:16px;font-weight:600;color:var(--text);">תצפיות</p>
-      <p>מודול זה בפיתוח</p>
-    </div>
+<!-- ══════════════════════════════════════════════════════════════════
+     OBSERVATIONS (תצפיות) — separate module, own collection (obs_records),
+     read-only against insp_plots / insp_pests, never writes to Samples data
+════════════════════════════════════════════════════════════════════ -->
+<div class="view" id="view-obs-home">
+  <button class="obs-big-btn" onclick="startObservation()">
+    <span class="obs-big-ico">👁</span>
+    תצפית חדשה
+  </button>
+</div>
+
+<div class="view" id="view-obs-form">
+  <div class="sc" id="obs-form-body"></div>
+</div>
+
+<div class="view" id="view-obs-report">
+  <div class="fv" id="obs-report-body"></div>
+  <div class="ffoot">
+    <button class="btn-sec" onclick="navTo('obs-form')">ביטול</button>
+    <button class="btn-sav" onclick="saveObsReport()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+      שמור
+    </button>
   </div>
 </div>
+
+<script>
+// ════════════════════════════════════════════════════════════════════
+// OBSERVATIONS (תצפיות)
+// ════════════════════════════════════════════════════════════════════
+
+async function startObservation() {
+  obsPlotId = null; obsLat = null; obsLng = null;
+  const body = document.getElementById('obs-form-body');
+  body.innerHTML = `<div style="text-align:center;padding:20px;color:var(--text-muted);">📡 מזהה מיקום...</div>`;
+  navTo('obs-form');
+  try {
+    const pos = await new Promise((res,rej) => navigator.geolocation.getCurrentPosition(res, rej, {timeout:6000}));
+    const {latitude:lat, longitude:lng} = pos.coords;
+    obsLat = lat; obsLng = lng;
+    const found = detectPlotFromGPS(lat, lng);
+    if(found) obsPlotId = found.plotId;
+  } catch(e) { /* GPS failed or timed out — user picks manually */ }
+  renderObsForm();
+}
+
+function renderObsForm() {
+  const body = document.getElementById('obs-form-body');
+  const plot = plots.find(p=>p.id===obsPlotId);
+  const crop = plot?.crop || '';
+
+  const plotOptions = plots.length
+    ? plots.map(p => `<option value="${p.id}" ${p.id===obsPlotId?'selected':''}>${p.name}</option>`).join('')
+    : '';
+
+  body.innerHTML = `
+    <div class="obs-plot-hdr">
+      <label class="frl">חלקה</label>
+      ${plots.length
+        ? `<select class="fin" id="obs-plot-select" onchange="onObsPlotChange(this.value)">
+             <option value="" ${obsPlotId?'':'selected'} disabled>בחר חלקה...</option>
+             ${plotOptions}
+           </select>`
+        : `<div style="font-size:13px;color:var(--text-muted);">אין חלקות מוגדרות</div>`}
+      <div class="obs-crop-line" id="obs-crop-line">${plot ? `${plot.crop||''}${plot.variety?' · '+plot.variety:''}` : 'בחר חלקה כדי להמשיך'}</div>
+    </div>
+    <div id="obs-pest-grid-wrap"></div>
+  `;
+  renderObsPestGrid(crop);
+}
+
+function onObsPlotChange(plotId) {
+  obsPlotId = plotId;
+  const plot = plots.find(p=>p.id===plotId);
+  document.getElementById('obs-crop-line').textContent = plot ? `${plot.crop||''}${plot.variety?' · '+plot.variety:''}` : '';
+  renderObsPestGrid(plot?.crop || '');
+}
+
+function getObsPests(crop) {
+  return pests
+    .filter(p => !p.crops?.length || p.crops.includes(crop))
+    .sort((a,b) => {
+      const oa = obsPestOrderMap[a.id] ?? (a.sortOrder ?? 999);
+      const ob = obsPestOrderMap[b.id] ?? (b.sortOrder ?? 999);
+      return oa - ob || a.name.localeCompare(b.name,'he');
+    });
+}
+
+function renderObsPestGrid(crop) {
+  const wrap = document.getElementById('obs-pest-grid-wrap');
+  if(!wrap) return;
+  if(!obsPlotId) {
+    wrap.innerHTML = `<div class="empty"><div class="eico">🌿</div><p>בחר חלקה כדי לראות את המזיקים הרלוונטיים.</p></div>`;
+    return;
+  }
+  const list = getObsPests(crop);
+  if(!list.length) {
+    wrap.innerHTML = `<div class="empty"><div class="eico">🐛</div><p>אין מזיקים מוגדרים לגידול זה.</p></div>`;
+    return;
+  }
+  wrap.innerHTML = `
+    <div class="obs-pest-grid" id="obs-pest-grid">
+      ${list.map(p => `
+        <button type="button" class="obs-pest-btn" data-pest-id="${p.id}"
+          style="background:${pestColor(p)};" onclick="onObsPestClick('${p.id}')">${p.name}</button>
+      `).join('')}
+    </div>
+    <div class="obs-hint">💡 לחיצה ארוכה על מזיק מאפשרת לגרור ולסדר לפי סדר עדיפות</div>
+  `;
+  document.querySelectorAll('#obs-pest-grid .obs-pest-btn').forEach(attachObsDrag);
+}
+
+// ── Long-press drag reorder (touch + mouse via Pointer Events) ─────────────
+function attachObsDrag(btn) {
+  let pressTimer = null, dragging = false, startX = 0, startY = 0;
+
+  btn.addEventListener('pointerdown', e => {
+    startX = e.clientX; startY = e.clientY;
+    pressTimer = setTimeout(() => {
+      dragging = true;
+      btn.classList.add('obs-dragging');
+      try { btn.setPointerCapture(e.pointerId); } catch(err){}
+      if(navigator.vibrate) navigator.vibrate(30);
+    }, 480);
+  });
+
+  btn.addEventListener('pointermove', e => {
+    if(pressTimer && !dragging) {
+      if(Math.abs(e.clientX-startX) > 10 || Math.abs(e.clientY-startY) > 10) {
+        clearTimeout(pressTimer); pressTimer = null;
+      }
+      return;
+    }
+    if(!dragging) return;
+    e.preventDefault();
+    const grid = document.getElementById('obs-pest-grid');
+    if(!grid) return;
+    const others = [...grid.querySelectorAll('.obs-pest-btn')].filter(el => el !== btn);
+    const target = others.find(el => {
+      const r = el.getBoundingClientRect();
+      return e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
+    });
+    if(target) {
+      const r = target.getBoundingClientRect();
+      const before = e.clientY < r.top + r.height/2;
+      grid.insertBefore(btn, before ? target : target.nextSibling);
+    }
+  });
+
+  const endDrag = () => {
+    clearTimeout(pressTimer); pressTimer = null;
+    if(dragging) {
+      dragging = false;
+      btn.classList.remove('obs-dragging');
+      obsJustDragged = true;
+      setTimeout(() => { obsJustDragged = false; }, 300);
+      saveObsPestOrder();
+    }
+  };
+  btn.addEventListener('pointerup', endDrag);
+  btn.addEventListener('pointercancel', endDrag);
+}
+
+async function saveObsPestOrder() {
+  const grid = document.getElementById('obs-pest-grid');
+  if(!grid) return;
+  const ids = [...grid.querySelectorAll('.obs-pest-btn')].map(b => b.dataset.pestId);
+  const order = {};
+  ids.forEach((id,i) => order[id] = i);
+  obsPestOrderMap = {...obsPestOrderMap, ...order};
+  try {
+    await db.collection('obs_meta').doc('pestOrder').set({order: obsPestOrderMap}, {merge:true});
+  } catch(e) { showToast('שגיאה בשמירת הסדר: '+e.message); }
+}
+
+function onObsPestClick(pestId) {
+  if(obsJustDragged) return; // ignore the click that follows a drag
+  openObsReportForm(pestId);
+}
+
+// ── Free-text observation report ────────────────────────────────────────────
+function openObsReportForm(pestId) {
+  obsSelectedPestId = pestId;
+  const plot = plots.find(p=>p.id===obsPlotId);
+  const pest = pests.find(p=>p.id===pestId);
+  const body = document.getElementById('obs-report-body');
+  body.innerHTML = `
+    <div class="section">
+      <div class="obs-report-hdr">
+        חלקה: <b>${plot?.name||''}</b>${plot?.crop?' · '+plot.crop:''}${plot?.variety?' · '+plot.variety:''}<br/>
+        מזיק: <b>${pestDot(pest)}${pest?.name||''}</b>
+      </div>
+      <label class="frl">הערות</label>
+      <textarea class="obs-note" id="obs-note" placeholder="תיאור חופשי של התצפית..."></textarea>
+    </div>
+  `;
+  navTo('obs-report');
+}
+
+async function saveObsReport() {
+  const note = document.getElementById('obs-note').value.trim();
+  if(!note) { showToast('נא להזין הערות'); return; }
+  const plot = plots.find(p=>p.id===obsPlotId);
+  const pest = pests.find(p=>p.id===obsSelectedPestId);
+  const data = {
+    plotId: obsPlotId, plotName: plot?.name||'', crop: plot?.crop||'', variety: plot?.variety||'',
+    pestId: obsSelectedPestId, pestName: pest?.name||'',
+    note,
+    location: (obsLat!=null && obsLng!=null) ? new firebase.firestore.GeoPoint(obsLat, obsLng) : null,
+    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+    createdBy: auth.currentUser?.email || '',
+  };
+  try {
+    await db.collection('obs_records').add(data);
+    showToast('התצפית נשמרה ✓');
+    navTo('obs-form'); // back to the pest grid for the same plot, ready for the next one
+  } catch(e) { showToast('שגיאה בשמירה: '+e.message); }
+}
+</script>
+
 </body>
 </html>
