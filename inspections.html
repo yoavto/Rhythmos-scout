@@ -257,7 +257,7 @@
       color:var(--text-muted);display:flex;align-items:center;justify-content:center;}
 
     /* ── PEST COLOR ── */
-    .pest-color-grid{display:grid;grid-template-columns:repeat(8,1fr);gap:10px;margin-top:6px;}
+    .pest-color-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-top:6px;}
     .pest-color-swatch{width:30px;height:30px;border-radius:50%;cursor:pointer;border:2.5px solid transparent;
       box-shadow:0 1px 4px rgba(0,0,0,0.2);padding:0;}
     .pest-color-swatch.sel{border-color:var(--text);box-shadow:0 0 0 2px white inset,0 1px 4px rgba(0,0,0,0.35);}
@@ -597,9 +597,8 @@ let savedPestSel = {};  // saved pest checkbox state for export
 
 // Rich color palette offered when defining a pest's identifying color
 const PEST_COLORS = [
-  '#e53935','#d81b60','#8e24aa','#5e35b1','#3949ab','#1e88e5','#039be5','#00acc1',
-  '#00897b','#43a047','#7cb342','#c0ca33','#fdd835','#ffb300','#fb8c00','#f4511e',
-  '#6d4c41','#757575','#546e7a','#c62828','#ad1457','#4527a0','#283593','#01579b'
+  '#e53935','#d81b60','#8e24aa','#3949ab','#1e88e5','#00acc1',
+  '#00897b','#43a047','#c0ca33','#ffb300','#fb8c00','#6d4c41'
 ];
 const PEST_DEFAULT_COLOR = '#9e9e9e';
 function pestColor(pest) { return pest?.color || PEST_DEFAULT_COLOR; }
@@ -954,7 +953,10 @@ async function movePest(id, direction) {
 
 function renderPests() {
   const el = document.getElementById('pests-list');
-  const fab = `<div class="fab-wrap"><button class="fab" onclick="openPestForm(null)">+</button></div>`;
+  const fab = `<div class="fab-wrap">
+    <button onclick="assignMissingPestColors()" style="background:white;border:1.5px solid var(--teal);color:var(--teal);border-radius:50%;width:50px;height:50px;font-size:20px;cursor:pointer;margin-left:10px;box-shadow:0 2px 8px rgba(0,0,0,0.1);" title="הקצה צבעים אוטומטית למזיקים ללא צבע">🎨</button>
+    <button class="fab" onclick="openPestForm(null)">+</button>
+  </div>`;
   if(!pests.length) {
     el.innerHTML = fab + `<div class="empty"><div class="eico">🐛</div><p>אין מזיקים מוגדרים.<br/>לחץ + להוספה.</p></div>`;
     return;
@@ -1089,6 +1091,31 @@ async function deletePest() {
     showToast('המזיק נמחק');
     navTo('pests');
   });
+}
+
+// Backfill colors for pests that don't have one yet:
+// prefer the matching pest's color from Traps (collection "insects", matched by name),
+// otherwise assign a random color from the palette. Never touches pests that already have a color.
+async function assignMissingPestColors() {
+  const missing = pests.filter(p => !p.color);
+  if(!missing.length) { showToast('לכל המזיקים כבר יש צבע'); return; }
+  try {
+    const trapsSnap = await db.collection('insects').get();
+    const trapColorByName = {};
+    trapsSnap.docs.forEach(d => {
+      const data = d.data();
+      if(data.name && data.color) trapColorByName[data.name] = data.color;
+    });
+    const batch = db.batch();
+    missing.forEach(p => {
+      const color = trapColorByName[p.name] || PEST_COLORS[Math.floor(Math.random()*PEST_COLORS.length)];
+      batch.update(db.collection('insp_pests').doc(p.id), {color});
+    });
+    await batch.commit();
+    await loadPests();
+    renderPests();
+    showToast(`הוקצה צבע ל-${missing.length} מזיקים`);
+  } catch(e) { showToast('שגיאה בהקצאת צבעים: '+e.message); }
 }
 
 
