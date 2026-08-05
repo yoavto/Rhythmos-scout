@@ -265,14 +265,8 @@
       vertical-align:middle;flex-shrink:0;box-shadow:0 0 0 1px rgba(0,0,0,0.1) inset;}
 
     /* ── OBSERVATIONS (תצפיות) ── */
-    #view-obs-home{align-items:center;justify-content:center;}
-    .obs-big-btn{width:190px;height:190px;border-radius:28px;background:var(--teal);color:white;
-      border:none;box-shadow:0 6px 22px rgba(19,79,92,0.4);cursor:pointer;
-      display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;
-      font-family:Arial,sans-serif;font-size:17px;font-weight:700;}
-    .obs-big-btn .obs-big-ico{font-size:52px;}
-    .obs-plot-hdr{background:white;border-radius:var(--radius);padding:14px;margin-bottom:12px;
-      box-shadow:0 1px 6px rgba(0,0,0,0.05);}
+    .obs-plot-hdr{background:white;border-radius:0;padding:14px;margin:0;
+      box-shadow:0 1px 6px rgba(0,0,0,0.06);flex-shrink:0;}
     .obs-crop-line{font-size:13px;color:var(--text-muted);margin-top:8px;}
     .obs-pest-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:2px 0 14px;}
     .obs-pest-btn{aspect-ratio:1;border-radius:18px;border:2px solid rgba(255,255,255,0.3);
@@ -298,6 +292,20 @@
     .obs-loc-btn{display:inline-flex;align-items:center;gap:5px;background:none;border:none;
       color:var(--teal);font-family:Arial,sans-serif;font-size:12px;font-weight:600;cursor:pointer;
       padding:4px 0;margin-top:2px;}
+
+    /* ── OBSERVATIONS REPORTS (דוחות) ── */
+    .obs-preview-hdr{font-size:13px;font-weight:700;color:var(--teal);margin-bottom:10px;}
+    .obs-tab-row{display:flex;gap:8px;margin-bottom:10px;}
+    .obs-tab-btn{flex:1;padding:9px;border-radius:8px;border:1.5px solid var(--teal);background:white;
+      color:var(--teal);font-family:Arial,sans-serif;font-size:13px;font-weight:700;cursor:pointer;}
+    .obs-tab-btn.sel{background:var(--teal);color:white;}
+    .obs-table-wrap{overflow-x:auto;border-radius:8px;border:1px solid var(--border);background:white;}
+    .obs-preview-table{border-collapse:collapse;width:100%;font-size:12px;font-family:Arial,sans-serif;}
+    .obs-preview-table th,.obs-preview-table td{border:1px solid var(--border);padding:8px;
+      text-align:right;vertical-align:top;white-space:pre-line;min-width:120px;}
+    .obs-preview-table th{background:rgba(19,79,92,0.08);font-weight:700;position:sticky;top:0;}
+    .obs-th-sub{font-weight:400;font-size:11px;color:var(--text-muted);}
+    .obs-td-pest{font-weight:700;background:rgba(19,79,92,0.04);white-space:nowrap;min-width:auto;}
 
   </style>
 </head>
@@ -648,12 +656,12 @@ const BACK = {
   'plots-import': 'plots',
   'pest-form'   : 'pests',
   'survey-form' : 'survey',
-  'obs-form'    : 'obs-home',
+  'obs-form'    : 'obs-list',
   'obs-report'  : 'obs-form',
 };
-const MAIN_VIEWS = ['plots','pests','survey','export','obs-home','obs-list','obs-export'];
-const OBS_VIEWS  = ['obs-home','obs-form','obs-report','obs-list','obs-export'];
-const OBS_MAIN_VIEWS = ['obs-home','obs-list','obs-export'];
+const MAIN_VIEWS = ['plots','pests','survey','export','obs-list','obs-export'];
+const OBS_VIEWS  = ['obs-form','obs-report','obs-list','obs-export'];
+const OBS_MAIN_VIEWS = ['obs-list','obs-export'];
 
 // ── NAVIGATION ────────────────────────────────────────────────────────────────
 
@@ -661,7 +669,7 @@ const OBS_MAIN_VIEWS = ['obs-home','obs-list','obs-export'];
 let curMode = 'samples'; // 'samples' | 'obs'
 
 function switchToMode(mode) {
-  navTo(mode === 'obs' ? 'obs-home' : 'survey');
+  navTo(mode === 'obs' ? 'obs-list' : 'survey');
 }
 
 function goToTraps() {
@@ -723,8 +731,8 @@ function navTo(v) {
   if(v==='pests')     renderPests();
   if(v==='survey')    renderSurveys();
   if(v==='export')    renderExportPests();
-  if(v==='obs-home')  { /* static big-button screen — nothing to render */ }
   if(v==='obs-list')  renderObsList();
+  if(v==='obs-export') renderObsExportPests();
 }
 
 function goBack() {
@@ -771,7 +779,8 @@ auth.onAuthStateChanged(user => {
 // ── LOAD DATA ─────────────────────────────────────────────────────────────────
 async function loadAll() {
   await Promise.all([loadPlots(), loadPests(), loadObsPestOrder()]);
-  navTo('survey');
+  const wantsObs = new URLSearchParams(location.search).get('mode') === 'obs';
+  navTo(wantsObs ? 'obs-list' : 'survey');
 }
 
 async function loadObsPestOrder() {
@@ -994,10 +1003,7 @@ async function movePest(id, direction) {
 
 function renderPests() {
   const el = document.getElementById('pests-list');
-  const fab = `<div class="fab-wrap">
-    <button onclick="assignMissingPestColors()" style="background:white;border:1.5px solid var(--teal);color:var(--teal);border-radius:50%;width:50px;height:50px;font-size:20px;cursor:pointer;margin-left:10px;box-shadow:0 2px 8px rgba(0,0,0,0.1);" title="הקצה צבעים אוטומטית למזיקים ללא צבע">🎨</button>
-    <button class="fab" onclick="openPestForm(null)">+</button>
-  </div>`;
+  const fab = `<div class="fab-wrap"><button class="fab" onclick="openPestForm(null)">+</button></div>`;
   if(!pests.length) {
     el.innerHTML = fab + `<div class="empty"><div class="eico">🐛</div><p>אין מזיקים מוגדרים.<br/>לחץ + להוספה.</p></div>`;
     return;
@@ -2081,15 +2087,9 @@ if('serviceWorker' in navigator){
      OBSERVATIONS (תצפיות) — separate module, own collection (obs_records),
      read-only against insp_plots / insp_pests, never writes to Samples data
 ════════════════════════════════════════════════════════════════════ -->
-<div class="view" id="view-obs-home">
-  <button class="obs-big-btn" onclick="startObservation()">
-    <span class="obs-big-ico">👁</span>
-    תצפית חדשה
-  </button>
-</div>
-
 <div class="view" id="view-obs-form">
-  <div class="sc" id="obs-form-body"></div>
+  <div id="obs-plot-hdr-wrap"></div>
+  <div class="sc" id="obs-pest-scroll"></div>
 </div>
 
 <div class="view" id="view-obs-report">
@@ -2108,11 +2108,71 @@ if('serviceWorker' in navigator){
 </div>
 
 <div class="view" id="view-obs-export">
-  <div class="sc" style="display:flex;align-items:center;justify-content:center;">
-    <div class="empty">
-      <div class="eico">📊</div>
-      <p style="font-size:16px;font-weight:600;color:var(--text);">דוחות תצפיות</p>
-      <p>מודול זה בפיתוח</p>
+  <div class="sc">
+    <div class="section">
+      <div class="sec-title">סינון</div>
+      <div class="date-row">
+        <div class="fr"><label class="frl">מתאריך</label>
+          <input class="fin" id="oex-from" type="text" placeholder="DD/MM/YYYY" pattern="\d{2}/\d{2}/\d{4}"/>
+        </div>
+        <div class="fr"><label class="frl">עד תאריך</label>
+          <input class="fin" id="oex-to" type="text" placeholder="DD/MM/YYYY" pattern="\d{2}/\d{2}/\d{4}"/>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;margin-top:8px;">
+        <div class="fr" style="flex:1;">
+          <label class="frl">גידול</label>
+          <select class="fin" id="oex-crop" onchange="onObsExportCropChange(this.value)">
+            <option value="">כל הגידולים</option>
+          </select>
+        </div>
+        <div class="fr" style="flex:1;">
+          <label class="frl">זן</label>
+          <select class="fin" id="oex-variety" disabled>
+            <option value="">כל הזנים</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="sec-title">מזיקים שיכללו בדוח</div>
+      <div id="oex-pest-list" style="margin-bottom:8px;"></div>
+      <div style="display:flex;gap:8px;margin-top:4px;">
+        <button onclick="selectAllObsPests(true)" style="flex:1;padding:7px;background:var(--input-bg);border:1px solid var(--border);border-radius:7px;font-family:Arial;font-size:12px;cursor:pointer;color:var(--text);">בחר הכל</button>
+        <button onclick="selectAllObsPests(false)" style="flex:1;padding:7px;background:var(--input-bg);border:1px solid var(--border);border-radius:7px;font-family:Arial;font-size:12px;cursor:pointer;color:var(--text);">בטל הכל</button>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="sec-title">תצוגה מקדימה</div>
+      <button onclick="buildObsPreview()" style="width:100%;padding:10px;background:white;border:1.5px solid var(--teal);border-radius:8px;font-family:Arial;font-size:13px;font-weight:600;color:var(--teal);cursor:pointer;margin-bottom:10px;">
+        🔍 הצג תצוגה מקדימה
+      </button>
+      <div id="oex-preview"></div>
+    </div>
+
+    <div class="section">
+      <div class="sec-title">ייצוא</div>
+      <button style="width:100%;padding:12px;background:var(--teal);color:white;border:none;border-radius:8px;font-family:Arial;font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:8px;" onclick="exportObsExcel()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+        ייצא לאקסל
+      </button>
+      <button onclick="exportObsFullBackup()" style="width:100%;padding:10px;background:white;border:1.5px solid var(--teal);border-radius:8px;font-family:Arial;font-size:13px;font-weight:600;color:var(--teal);cursor:pointer;margin-bottom:8px;">
+        💾 ייצא גיבוי מלא (JSON)
+      </button>
+      <input type="file" id="obs-restore-file" accept=".json" style="display:none" onchange="onObsRestoreFileChosen(event)"/>
+      <button onclick="document.getElementById('obs-restore-file').click()" style="width:100%;padding:10px;background:white;border:1.5px solid rgba(137,10,10,0.4);border-radius:8px;font-family:Arial;font-size:13px;font-weight:600;color:var(--red);cursor:pointer;">
+        📂 העלה קובץ גיבוי
+      </button>
+      <div id="obs-restore-preview" style="display:none;margin-top:10px;">
+        <div style="background:var(--input-bg);border-radius:8px;padding:12px;font-size:13px;margin-bottom:8px;" id="obs-restore-summary"></div>
+        <div style="background:#fff3cd;border:1.5px solid #e6a817;border-radius:8px;padding:10px;font-size:12px;color:#7a4f00;margin-bottom:8px;">
+          ⚠️ שחזור ימחק את כל נתוני התצפיות הקיימים (obs_records). גיבוי אוטומטי יישמר לפני הפעולה.
+        </div>
+        <button style="width:100%;padding:11px;background:var(--red);color:white;border:none;border-radius:8px;font-family:Arial;font-size:14px;font-weight:700;cursor:pointer;" onclick="doObsRestore()">⚠️ שחזר</button>
+        <button class="btn-sec" style="width:100%;margin-top:6px;" onclick="cancelObsRestore()">ביטול</button>
+      </div>
     </div>
   </div>
 </div>
@@ -2166,7 +2226,7 @@ function applyObsGpsResult(token, foundPlotId) {
 }
 
 function renderObsForm(detecting) {
-  const body = document.getElementById('obs-form-body');
+  const hdrWrap = document.getElementById('obs-plot-hdr-wrap');
   const plot = plots.find(p=>p.id===obsPlotId);
   const crop = plot?.crop || '';
 
@@ -2174,7 +2234,7 @@ function renderObsForm(detecting) {
     ? plots.map(p => `<option value="${p.id}" ${p.id===obsPlotId?'selected':''}>${p.name}</option>`).join('')
     : '';
 
-  body.innerHTML = `
+  hdrWrap.innerHTML = `
     <div class="obs-plot-hdr">
       <label class="frl">חלקה</label>
       ${plots.length
@@ -2187,7 +2247,6 @@ function renderObsForm(detecting) {
         ${detecting ? '📡 מזהה מיקום ברקע...' : (plot ? `${plot.crop||''}${plot.variety?' · '+plot.variety:''}` : 'בחר חלקה כדי להמשיך')}
       </div>
     </div>
-    <div id="obs-pest-grid-wrap"></div>
   `;
   const sel = document.getElementById('obs-plot-select');
   if(sel) {
@@ -2223,7 +2282,7 @@ function getObsPests(crop) {
 }
 
 function renderObsPestGrid(crop) {
-  const wrap = document.getElementById('obs-pest-grid-wrap');
+  const wrap = document.getElementById('obs-pest-scroll');
   if(!wrap) return;
   if(!obsPlotId) {
     wrap.innerHTML = `<div class="empty"><div class="eico">🌿</div><p>בחר חלקה כדי לראות את המזיקים הרלוונטיים.</p></div>`;
@@ -2326,18 +2385,89 @@ function renderObsReportBody(prefillNote, prefillReco) {
         חלקה: <b>${plot?.name||''}</b>${plot?.crop?' · '+plot.crop:''}${plot?.variety?' · '+plot.variety:''}<br/>
         מזיק: <b>${pestDot(pest)}${pest?.name||''}</b>
       </div>
-      ${hasLoc ? `<button type="button" class="obs-loc-btn" onclick="openObsLocationMap()">📍 הצג מיקום על המפה</button>` : ''}
-      <label class="frl"><span class="req-mark">*</span>תצפית</label>
-      <textarea class="obs-note" id="obs-note" placeholder="תיאור חופשי של התצפית...">${escapeHtml(prefillNote)}</textarea>
+      <button type="button" class="obs-loc-btn" id="obs-loc-toggle-btn" onclick="toggleObsMap()">📍 <span id="obs-loc-toggle-label">${hasLoc?'הצג / עדכן מיקום על המפה':'הוסף מיקום על המפה'}</span></button>
+      <div id="obs-map-panel" style="display:none;">
+        <div id="obs-map-canvas" style="width:100%;height:260px;border-radius:10px;overflow:hidden;margin:8px 0;background:#e0e0e0;"></div>
+        <p style="font-size:11px;color:var(--text-muted);margin:0 0 8px;">גררו את הסיכה או הקישו על המפה למיקום המדויק</p>
+        <div style="display:flex;gap:8px;margin-bottom:4px;">
+          <button type="button" class="btn-sec" style="flex:1;width:auto;" onclick="closeObsMap(false)">ביטול</button>
+          <button type="button" class="btn-sav" style="flex:1;width:auto;" onclick="closeObsMap(true)">✓ אישור מיקום</button>
+        </div>
+      </div>
+      <label class="frl"><span class="req-mark">*</span>ממצאים</label>
+      <textarea class="obs-note" id="obs-note" placeholder="תיאור חופשי של הממצאים...">${escapeHtml(prefillNote)}</textarea>
       <label class="frl" style="margin-top:12px;">המלצות</label>
       <textarea class="obs-reco" id="obs-reco" placeholder="המלצות (לא חובה)...">${escapeHtml(prefillReco)}</textarea>
     </div>
   `;
 }
 
-function openObsLocationMap() {
-  if(obsLat == null || obsLng == null) { showToast('אין מיקום שמור לתצפית זו'); return; }
-  window.open(`https://www.google.com/maps?q=${obsLat},${obsLng}`, '_blank');
+// ── Embedded Google Map panel (pick/adjust the observation's location) ─────
+const OBS_MAPS_KEY = 'AIzaSyBR-YULE9PQCHzIEQGnllYaJ4jalSTD3IM'; // same restricted key used across the Rhythmos suite
+let obsGMap = null, obsGMarker = null;
+let obsMapPendingLat = null, obsMapPendingLng = null;
+let obsMapsLoadPromise = null;
+
+function loadGoogleMapsScript() {
+  if(window.google && window.google.maps) return Promise.resolve();
+  if(obsMapsLoadPromise) return obsMapsLoadPromise;
+  obsMapsLoadPromise = new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = `https://maps.googleapis.com/maps/api/js?key=${OBS_MAPS_KEY}`;
+    s.onload = resolve;
+    s.onerror = () => { obsMapsLoadPromise = null; reject(new Error('load failed')); };
+    document.head.appendChild(s);
+  });
+  return obsMapsLoadPromise;
+}
+
+async function toggleObsMap() {
+  const panel = document.getElementById('obs-map-panel');
+  if(panel.style.display === 'block') { panel.style.display = 'none'; return; }
+
+  panel.style.display = 'block';
+  try {
+    await loadGoogleMapsScript();
+  } catch(e) {
+    showToast('שגיאה בטעינת המפה');
+    panel.style.display = 'none';
+    return;
+  }
+
+  const hasLoc = (obsLat != null && obsLng != null);
+  const startLat = hasLoc ? obsLat : 32.0;
+  const startLng = hasLoc ? obsLng : 34.9; // rough fallback center if no location exists yet
+  obsMapPendingLat = obsLat; obsMapPendingLng = obsLng;
+
+  const canvas = document.getElementById('obs-map-canvas');
+  obsGMap = new google.maps.Map(canvas, {
+    center: {lat: startLat, lng: startLng}, zoom: hasLoc ? 18 : 14,
+    mapTypeId: 'hybrid', streetViewControl: false, mapTypeControl: false, fullscreenControl: false,
+  });
+  obsGMarker = new google.maps.Marker({
+    position: {lat: startLat, lng: startLng}, map: obsGMap, draggable: true,
+  });
+  const syncPending = () => {
+    const pos = obsGMarker.getPosition();
+    obsMapPendingLat = pos.lat(); obsMapPendingLng = pos.lng();
+  };
+  obsGMarker.addListener('dragend', syncPending);
+  obsGMap.addListener('click', e => {
+    obsGMarker.setPosition(e.latLng);
+    syncPending();
+  });
+  google.maps.event.trigger(obsGMap, 'resize'); // canvas was just made visible
+}
+
+function closeObsMap(confirmChoice) {
+  if(confirmChoice && obsMapPendingLat != null && obsMapPendingLng != null) {
+    obsLat = obsMapPendingLat; obsLng = obsMapPendingLng;
+    const lbl = document.getElementById('obs-loc-toggle-label');
+    if(lbl) lbl.textContent = 'הצג / עדכן מיקום על המפה';
+    showToast('המיקום עודכן ✓');
+  }
+  const panel = document.getElementById('obs-map-panel');
+  if(panel) panel.style.display = 'none';
 }
 
 function openObsReportForm(pestId) {
@@ -2372,10 +2502,12 @@ async function saveObsReport() {
   if(!note) { showToast('נא למלא את שדה התצפית'); return; }
 
   if(obsEditRecordId) {
-    // Editing an existing record: update text fields only, keep its original date/time/plot/pest
+    // Editing an existing record: keep its original date/time/plot/pest, but do allow
+    // the note/recommendations and a repositioned map pin to be saved
     try {
       await db.collection('obs_records').doc(obsEditRecordId).update({
         note, recommendations: reco,
+        location: (obsLat!=null && obsLng!=null) ? new firebase.firestore.GeoPoint(obsLat, obsLng) : null,
         updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
       });
       showToast('התצפית עודכנה ✓');
@@ -2483,6 +2615,310 @@ function deleteObsRecord(id) {
       showToast('התצפית נמחקה');
     } catch(e) { showToast('שגיאה: '+e.message); }
   });
+}
+
+// ════════════════════════════════════════════════════════════════════
+// OBSERVATIONS REPORTS (דוחות) — mirrors the Samples export screen
+// structurally (filter / pest checklist / export), teal instead of red,
+// plus a preview. Rows = pests, columns = plots (transposed vs Samples).
+// ════════════════════════════════════════════════════════════════════
+let obsSavedPestSel = {}; // {pestId: boolean} — mirrors savedPestSel but kept independent of Samples
+
+function renderObsExportPests() {
+  const el = document.getElementById('oex-pest-list');
+  if(!el) return;
+  if(!pests.length) { el.innerHTML = '<span style="font-size:13px;color:var(--text-muted);">אין מזיקים</span>'; return; }
+
+  const toD = new Date(); const fromD = new Date(); fromD.setDate(fromD.getDate()-7);
+  if(!document.getElementById('oex-to').value)   document.getElementById('oex-to').value   = isoToDisplay(di(toD));
+  if(!document.getElementById('oex-from').value) document.getElementById('oex-from').value = isoToDisplay(di(fromD));
+
+  const cropSel = document.getElementById('oex-crop');
+  const uniqueCrops = [...new Set(plots.map(p=>p.crop).filter(Boolean))].sort();
+  if(cropSel) {
+    const curCrop = cropSel.value;
+    cropSel.innerHTML = '<option value="">כל הגידולים</option>' + uniqueCrops.map(c=>`<option value="${c}" ${c===curCrop?'selected':''}>${c}</option>`).join('');
+  }
+
+  el.innerHTML = pests.map(p => `
+    <div class="chk-item" onclick="rowClickObsPestSel('${p.id}', event)">
+      <input type="checkbox" id="oexck-${p.id}" ${obsSavedPestSel[p.id]!==false?'checked':''}
+        onchange="toggleObsPestSel('${p.id}')">
+      <label for="oexck-${p.id}">${pestDot(p)}${p.name}</label>
+    </div>`).join('');
+}
+
+function rowClickObsPestSel(id, evt) {
+  if (evt.target.closest('input,label')) return;
+  const cb = document.getElementById('oexck-'+id);
+  if (cb) cb.click();
+}
+function toggleObsPestSel(id) {
+  const cb = document.getElementById('oexck-'+id);
+  if (cb) obsSavedPestSel[id] = cb.checked;
+}
+function selectAllObsPests(val) {
+  pests.forEach(p => {
+    const cb = document.getElementById('oexck-'+p.id);
+    if (cb) { cb.checked = val; obsSavedPestSel[p.id] = val; }
+  });
+}
+function getSelObsPests() {
+  return pests.filter(p => {
+    const cb = document.getElementById('oexck-'+p.id);
+    obsSavedPestSel[p.id] = cb ? cb.checked : obsSavedPestSel[p.id] !== false;
+    return obsSavedPestSel[p.id] !== false;
+  });
+}
+function onObsExportCropChange(crop) {
+  const varSel = document.getElementById('oex-variety');
+  if(!varSel) return;
+  const varieties = [...new Set(plots.filter(p=>!crop||p.crop===crop).map(p=>p.variety).filter(Boolean))].sort();
+  varSel.innerHTML = '<option value="">כל הזנים</option>' + varieties.map(v=>`<option value="${v}">${v}</option>`).join('');
+  varSel.disabled = varieties.length === 0;
+}
+
+// Shared data-fetch for both the preview and the Excel export, so the two never drift apart
+async function fetchObsReportData(from, to, filterCrop, filterVariety, selPests) {
+  const snap = await db.collection('obs_records').where('date','>=',from).where('date','<=',to).orderBy('date').get();
+  const records = snap.docs.map(d => ({id:d.id, ...d.data()}));
+
+  const filteredPlots = plots.filter(p =>
+    (!filterCrop || p.crop === filterCrop) &&
+    (!filterVariety || p.variety === filterVariety)
+  );
+  const filteredPlotIds = new Set(filteredPlots.map(p=>p.id));
+  const selPestIds = new Set(selPests.map(p=>p.id));
+
+  const byPlotPest = {};       // plotId -> pestId -> [records, sorted by date+time]
+  const usedPlotIds = new Set();
+  records.forEach(r => {
+    if(!filteredPlotIds.has(r.plotId) || !selPestIds.has(r.pestId)) return;
+    if(!byPlotPest[r.plotId]) byPlotPest[r.plotId] = {};
+    if(!byPlotPest[r.plotId][r.pestId]) byPlotPest[r.plotId][r.pestId] = [];
+    byPlotPest[r.plotId][r.pestId].push(r);
+    usedPlotIds.add(r.plotId);
+  });
+  Object.values(byPlotPest).forEach(pestMap => {
+    Object.values(pestMap).forEach(arr => arr.sort((a,b) => (a.date+a.time).localeCompare(b.date+b.time)));
+  });
+
+  const usedPlots = filteredPlots.filter(p => usedPlotIds.has(p.id)).sort((a,b) => a.name.localeCompare(b.name,'he'));
+  return { usedPlots, byPlotPest };
+}
+
+// Multiple observations for the same plot+pest in range are stacked in one cell, each
+// line prefixed with its date/time so nothing is silently collapsed together.
+function obsCellText(records, field) {
+  if(!records || !records.length) return '';
+  if(records.length === 1) return records[0][field] || '';
+  return records.map(r => {
+    const dstr = r.date ? r.date.split('-').reverse().join('/') : '';
+    return `${dstr} ${r.time||''}: ${r[field]||''}`.trim();
+  }).join('\n');
+}
+
+// ── Preview ──────────────────────────────────────────────────────────────────
+let obsReportData = null;     // last-built {usedPlots, byPlotPest, selPests, from, to}
+let obsPreviewTab = 'findings'; // 'findings' | 'reco'
+
+async function buildObsPreview() {
+  const from = dateInputVal('oex-from');
+  const to   = dateInputVal('oex-to');
+  if(!from || !to) { showToast('נא לבחור תאריכים (DD/MM/YYYY)'); return; }
+  const selPests = getSelObsPests();
+  if(!selPests.length) { showToast('נא לבחור מזיקים'); return; }
+  const filterCrop = document.getElementById('oex-crop')?.value || '';
+  const filterVariety = document.getElementById('oex-variety')?.value || '';
+
+  const el = document.getElementById('oex-preview');
+  el.innerHTML = `<div style="text-align:center;padding:20px;color:var(--text-muted);">טוען תצוגה מקדימה...</div>`;
+  try {
+    const data = await fetchObsReportData(from, to, filterCrop, filterVariety, selPests);
+    obsReportData = {...data, selPests, from, to};
+    renderObsPreviewTable();
+  } catch(e) { el.innerHTML = `<div class="empty"><p>שגיאה: ${e.message}</p></div>`; }
+}
+
+function switchObsPreviewTab(tab) {
+  obsPreviewTab = tab;
+  renderObsPreviewTable();
+}
+
+function obsPreviewTabsHtml() {
+  return `<div class="obs-tab-row">
+    <button type="button" class="obs-tab-btn${obsPreviewTab==='findings'?' sel':''}" onclick="switchObsPreviewTab('findings')">ממצאים</button>
+    <button type="button" class="obs-tab-btn${obsPreviewTab==='reco'?' sel':''}" onclick="switchObsPreviewTab('reco')">המלצות</button>
+  </div>`;
+}
+
+function renderObsPreviewTable() {
+  const el = document.getElementById('oex-preview');
+  if(!el || !obsReportData) return;
+  const { usedPlots, byPlotPest, selPests, from, to } = obsReportData;
+  const dateLabel = from===to ? isoToDisplay(from) : `${isoToDisplay(from)} – ${isoToDisplay(to)}`;
+
+  if(!usedPlots.length) {
+    el.innerHTML = `
+      <div class="obs-preview-hdr">📅 ${dateLabel}</div>
+      ${obsPreviewTabsHtml()}
+      <div class="empty"><p>אין תצפיות תואמות לסינון שנבחר.</p></div>`;
+    return;
+  }
+
+  const field = obsPreviewTab === 'findings' ? 'note' : 'recommendations';
+  let table = `<div class="obs-table-wrap"><table class="obs-preview-table"><thead><tr><th>מזיק</th>`;
+  usedPlots.forEach(p => {
+    table += `<th>${escapeHtml(p.name)}${p.crop?`<br><span class="obs-th-sub">${escapeHtml(p.crop)}${p.variety?' · '+escapeHtml(p.variety):''}</span>`:''}</th>`;
+  });
+  table += `</tr></thead><tbody>`;
+  selPests.forEach(pest => {
+    table += `<tr><td class="obs-td-pest">${pestDot(pest)}${escapeHtml(pest.name)}</td>`;
+    usedPlots.forEach(p => {
+      const txt = obsCellText(byPlotPest[p.id]?.[pest.id], field);
+      table += `<td>${escapeHtml(txt)}</td>`;
+    });
+    table += `</tr>`;
+  });
+  table += `</tbody></table></div>`;
+
+  el.innerHTML = `<div class="obs-preview-hdr">📅 ${dateLabel}</div>${obsPreviewTabsHtml()}${table}`;
+}
+
+// ── Excel export (same two datasets as the preview, as two sheets) ─────────
+async function exportObsExcel() {
+  const from = dateInputVal('oex-from');
+  const to   = dateInputVal('oex-to');
+  if(!from || !to) { showToast('נא לבחור תאריכים (DD/MM/YYYY)'); return; }
+  const selPests = getSelObsPests();
+  if(!selPests.length) { showToast('נא לבחור מזיקים'); return; }
+  const filterCrop = document.getElementById('oex-crop')?.value || '';
+  const filterVariety = document.getElementById('oex-variety')?.value || '';
+
+  showToast('מייצא...');
+  try {
+    const { usedPlots, byPlotPest } = await fetchObsReportData(from, to, filterCrop, filterVariety, selPests);
+    if(!usedPlots.length) { showToast('אין נתונים'); return; }
+
+    const XS = (typeof XLSXStyle !== 'undefined') ? XLSXStyle : XLSX;
+    const wb = XS.utils.book_new();
+
+    [['note','ממצאים'], ['recommendations','המלצות']].forEach(([field, sheetName]) => {
+      const headers = ['מזיק', ...usedPlots.map(p => p.name + (p.crop ? '\n'+p.crop+(p.variety?' · '+p.variety:'') : ''))];
+      const aoa = [headers];
+      selPests.forEach(pest => {
+        const row = [pest.name];
+        usedPlots.forEach(p => row.push(obsCellText(byPlotPest[p.id]?.[pest.id], field)));
+        aoa.push(row);
+      });
+
+      const ws = XS.utils.aoa_to_sheet(aoa);
+      ws['!views'] = [{rightToLeft: true}];
+      ws['!cols'] = headers.map(() => ({wpx: 150}));
+
+      const sHeader = {alignment: {wrapText: true, vertical: 'center', readingOrder: 2}, font: {bold: true, sz: 11}};
+      const sPestCol = {alignment: {wrapText: true, vertical: 'center', readingOrder: 2}, font: {bold: true, sz: 11}};
+      const sData = {alignment: {wrapText: true, vertical: 'top', readingOrder: 2}};
+      for(const addr in ws) {
+        if(addr[0] === '!') continue;
+        const ref = XS.utils.decode_cell(addr);
+        if(ref.r === 0) ws[addr].s = sHeader;
+        else if(ref.c === 0) ws[addr].s = sPestCol;
+        else ws[addr].s = sData;
+      }
+      XS.utils.book_append_sheet(wb, ws, sheetName);
+    });
+
+    const dateStr = from.replace(/-/g,'') + '-' + to.replace(/-/g,'');
+    XS.writeFile(wb, `דוח תצפיות ${dateStr}.xlsx`);
+    showToast('הקובץ הורד');
+  } catch(e) { showToast('שגיאה: '+e.message); }
+}
+
+// ── Full backup / restore — scoped only to Observations' own collections ───
+async function exportObsFullBackup() {
+  showToast('מכין גיבוי...');
+  try {
+    const [recSnap, metaSnap] = await Promise.all([
+      db.collection('obs_records').get(),
+      db.collection('obs_meta').doc('pestOrder').get()
+    ]);
+    const data = {
+      exportedAt: new Date().toISOString(),
+      records: recSnap.docs.map(d => ({id:d.id, ...d.data()})),
+      pestOrder: metaSnap.exists ? metaSnap.data() : {order:{}},
+    };
+    const blob = new Blob([JSON.stringify(data,null,2)], {type:'application/json'});
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+    a.download = 'rhythmos-obs-backup-'+di(new Date())+'.json'; a.click();
+    showToast('הגיבוי הורד');
+  } catch(e) { showToast('שגיאה: '+e.message); }
+}
+
+let obsRestoreData = null;
+function onObsRestoreFileChosen(e) {
+  const file = e.target.files[0]; if(!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      obsRestoreData = JSON.parse(ev.target.result);
+      if(!obsRestoreData.records) { showToast('קובץ לא תקין'); obsRestoreData = null; return; }
+      const dt = obsRestoreData.exportedAt ? new Date(obsRestoreData.exportedAt).toLocaleString('he-IL') : 'לא ידוע';
+      document.getElementById('obs-restore-summary').innerHTML =
+        'תאריך גיבוי: <strong>'+dt+'</strong><br>תצפיות: <strong>'+obsRestoreData.records.length+'</strong>';
+      document.getElementById('obs-restore-preview').style.display = 'block';
+    } catch(err) { showToast('שגיאה בקריאת הקובץ'); }
+  };
+  reader.readAsText(file);
+}
+function cancelObsRestore() {
+  obsRestoreData = null;
+  document.getElementById('obs-restore-preview').style.display = 'none';
+  document.getElementById('obs-restore-file').value = '';
+}
+async function doObsRestore() {
+  if(!obsRestoreData) return;
+  const btn = event.target; btn.disabled = true; btn.textContent = 'מגבה...';
+  try {
+    const curSnap = await db.collection('obs_records').get();
+    const preBackup = {
+      exportedAt: new Date().toISOString(), note: 'גיבוי לפני שחזור',
+      records: curSnap.docs.map(d => ({id:d.id, ...d.data()})),
+    };
+    const blob = new Blob([JSON.stringify(preBackup,null,2)], {type:'application/json'});
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+    a.download = 'rhythmos-obs-pre-restore-'+di(new Date())+'.json'; a.click();
+    await new Promise(r => setTimeout(r,800));
+
+    btn.textContent = 'מוחק...';
+    for(let i=0; i<curSnap.docs.length; i+=400) {
+      const b = db.batch();
+      curSnap.docs.slice(i,i+400).forEach(d => b.delete(d.ref));
+      await b.commit();
+    }
+
+    btn.textContent = 'משחזר...';
+    const items = obsRestoreData.records;
+    for(let i=0; i<items.length; i+=400) {
+      const b = db.batch();
+      items.slice(i,i+400).forEach(item => {
+        const {id, ...data} = item;
+        b.set(id ? db.collection('obs_records').doc(id) : db.collection('obs_records').doc(), data);
+      });
+      await b.commit();
+    }
+    if(obsRestoreData.pestOrder) {
+      await db.collection('obs_meta').doc('pestOrder').set(obsRestoreData.pestOrder);
+      obsPestOrderMap = obsRestoreData.pestOrder.order || {};
+    }
+
+    showToast('שחזור הושלם ✓');
+    cancelObsRestore();
+    if(curView === 'obs-list') renderObsList();
+  } catch(e) {
+    showToast('שגיאה: '+e.message);
+    btn.disabled = false; btn.textContent = '⚠️ שחזר';
+  }
 }
 </script>
 
