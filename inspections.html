@@ -614,6 +614,11 @@ let obsPlotId = null, obsLat = null, obsLng = null;
 let obsPestOrderMap = {};   // {pestId: orderIndex} — separate from Samples' insp_pests.sortOrder
 let obsSelectedPestId = null;
 let obsJustDragged = false;
+let obsEditRecordId = null; // set when editing an existing obs_records doc; null = creating a new one
+
+function escapeHtml(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
 
 const BACK = {
   'plot-form'   : 'plots',
@@ -2067,7 +2072,7 @@ if('serviceWorker' in navigator){
 <div class="view" id="view-obs-report">
   <div class="fv" id="obs-report-body"></div>
   <div class="ffoot">
-    <button class="btn-sec" onclick="navTo('obs-form')">ביטול</button>
+    <button class="btn-sec" onclick="cancelObsReport()">ביטול</button>
     <button class="btn-sav" onclick="saveObsReport()">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
       שמור
@@ -2094,22 +2099,35 @@ if('serviceWorker' in navigator){
 // OBSERVATIONS (תצפיות)
 // ════════════════════════════════════════════════════════════════════
 
-async function startObservation() {
+let obsFormToken = 0;        // bumped each time a new "תצפית חדשה" session starts, to discard stale/late GPS results
+let obsUserPickedPlot = false; // true once the user manually chooses a plot — background GPS must not override it
+
+function startObservation() {
   obsPlotId = null; obsLat = null; obsLng = null;
-  const body = document.getElementById('obs-form-body');
-  body.innerHTML = `<div style="text-align:center;padding:20px;color:var(--text-muted);">📡 מזהה מיקום...</div>`;
+  obsUserPickedPlot = false;
+  obsFormToken++;
+  const myToken = obsFormToken;
   navTo('obs-form');
+  renderObsForm(true); // form is fully usable right away; 'true' just shows a small "detecting" hint
+  detectObsLocation(myToken);
+}
+
+async function detectObsLocation(token) {
   try {
     const pos = await new Promise((res,rej) => navigator.geolocation.getCurrentPosition(res, rej, {timeout:6000}));
+    if(token !== obsFormToken || obsUserPickedPlot) return; // user already moved on or picked manually — ignore
     const {latitude:lat, longitude:lng} = pos.coords;
     obsLat = lat; obsLng = lng;
     const found = detectPlotFromGPS(lat, lng);
     if(found) obsPlotId = found.plotId;
-  } catch(e) { /* GPS failed or timed out — user picks manually */ }
-  renderObsForm();
+    renderObsForm(false);
+  } catch(e) {
+    if(token !== obsFormToken || obsUserPickedPlot) return;
+    renderObsForm(false); // GPS failed/timed out — just drop the "detecting" hint, field stays editable
+  }
 }
 
-function renderObsForm() {
+function renderObsForm(detecting) {
   const body = document.getElementById('obs-form-body');
   const plot = plots.find(p=>p.id===obsPlotId);
   const crop = plot?.crop || '';
@@ -2127,7 +2145,9 @@ function renderObsForm() {
              ${plotOptions}
            </select>`
         : `<div style="font-size:13px;color:var(--text-muted);">אין חלקות מוגדרות</div>`}
-      <div class="obs-crop-line" id="obs-crop-line">${plot ? `${plot.crop||''}${plot.variety?' · '+plot.variety:''}` : 'בחר חלקה כדי להמשיך'}</div>
+      <div class="obs-crop-line" id="obs-crop-line">
+        ${detecting ? '📡 מזהה מיקום ברקע...' : (plot ? `${plot.crop||''}${plot.variety?' · '+plot.variety:''}` : 'בחר חלקה כדי להמשיך')}
+      </div>
     </div>
     <div id="obs-pest-grid-wrap"></div>
   `;
@@ -2135,6 +2155,7 @@ function renderObsForm() {
 }
 
 function onObsPlotChange(plotId) {
+  obsUserPickedPlot = true; // manual choice always wins over a late GPS result
   obsPlotId = plotId;
   const plot = plots.find(p=>p.id===plotId);
   document.getElementById('obs-crop-line').textContent = plot ? `${plot.crop||''}${plot.variety?' · '+plot.variety:''}` : '';
@@ -2244,10 +2265,9 @@ function onObsPestClick(pestId) {
 }
 
 // ── Free-text observation report ────────────────────────────────────────────
-function openObsReportForm(pestId) {
-  obsSelectedPestId = pestId;
+function renderObsReportBody(prefillNote) {
   const plot = plots.find(p=>p.id===obsPlotId);
-  const pest = pests.find(p=>p.id===pestId);
+  const pest = pests.find(p=>p.id===obsSelectedPestId);
   const body = document.getElementById('obs-report-body');
   body.innerHTML = `
     <div class="section">
@@ -2256,15 +2276,55 @@ function openObsReportForm(pestId) {
         מזיק: <b>${pestDot(pest)}${pest?.name||''}</b>
       </div>
       <label class="frl">הערות</label>
-      <textarea class="obs-note" id="obs-note" placeholder="תיאור חופשי של התצפית..."></textarea>
+      <textarea class="obs-note" id="obs-note" placeholder="תיאור חופשי של התצפית...">${escapeHtml(prefillNote)}</textarea>
     </div>
   `;
+}
+
+function openObsReportForm(pestId) {
+  obsSelectedPestId = pestId;
+  obsEditRecordId = null;
+  renderObsReportBody('');
   navTo('obs-report');
+}
+
+async function openObsRecordEdit(id) {
+  try {
+    const snap = await db.collection('obs_records').doc(id).get();
+    if(!snap.exists) { showToast('התצפית לא נמצאה'); return; }
+    const data = snap.data();
+    obsEditRecordId = id;
+    obsPlotId = data.plotId || null;
+    obsSelectedPestId = data.pestId || null;
+    obsLat = (data.location && data.location.latitude != null) ? data.location.latitude : null;
+    obsLng = (data.location && data.location.longitude != null) ? data.location.longitude : null;
+    renderObsReportBody(data.note || '');
+    navTo('obs-report');
+  } catch(e) { showToast('שגיאה בטעינה: '+e.message); }
+}
+
+function cancelObsReport() {
+  navTo(obsEditRecordId ? 'obs-list' : 'obs-form');
 }
 
 async function saveObsReport() {
   const note = document.getElementById('obs-note').value.trim();
   if(!note) { showToast('נא להזין הערות'); return; }
+
+  if(obsEditRecordId) {
+    // Editing an existing record: update the note only, keep its original date/time/plot/pest
+    try {
+      await db.collection('obs_records').doc(obsEditRecordId).update({
+        note,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      });
+      showToast('התצפית עודכנה ✓');
+      obsEditRecordId = null;
+      navTo('obs-list');
+    } catch(e) { showToast('שגיאה בשמירה: '+e.message); }
+    return;
+  }
+
   const plot = plots.find(p=>p.id===obsPlotId);
   const pest = pests.find(p=>p.id===obsSelectedPestId);
   const now = new Date();
@@ -2343,12 +2403,15 @@ function obsListSortBar() {
 function obsRecordCard(r) {
   const pest = pests.find(p=>p.id===r.pestId);
   const color = pest ? pestColor(pest) : (r.pestId ? PEST_DEFAULT_COLOR : null);
-  return `<div class="card" style="cursor:default;">
+  return `<div class="card" onclick="openObsRecordEdit('${r.id}')">
     <div class="card-body">
       <div class="card-title">${color?`<span class="pest-dot" style="background:${color};"></span>`:''}${r.pestName||'ללא מזיק'} · ${r.time||''}</div>
       <div class="card-sub" style="white-space:normal;overflow:visible;">${r.note||''}</div>
     </div>
-    <button class="ia" onclick="deleteObsRecord('${r.id}')" style="font-size:20px;flex-shrink:0;padding:4px 8px;">🗑</button>
+    <div class="card-actions">
+      <button class="ia" onclick="event.stopPropagation();openObsRecordEdit('${r.id}')" style="font-size:18px;">✏️</button>
+      <button class="ia" onclick="event.stopPropagation();deleteObsRecord('${r.id}')" style="font-size:20px;">🗑</button>
+    </div>
   </div>`;
 }
 
