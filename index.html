@@ -253,11 +253,6 @@
   <div class="ffoot"><button class="btn-sec" onclick="navTo('insects')">ביטול</button><button class="btn-sav" onclick="saveInsect()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> שמור</button></div>
 </div>
 <div class="view" id="view-traps">
-  <div style="background:var(--white);border-bottom:1px solid var(--border);padding:6px 12px;flex-shrink:0;display:flex;gap:6px;align-items:center;">
-    <span style="font-size:11px;color:var(--text-muted);">הפעל/כבה הכל:</span>
-    <button onclick="setAllTrapsActive(true)" style="flex:1;font-size:11px;padding:5px 0;border:1px solid var(--teal);border-radius:6px;background:white;color:var(--teal);cursor:pointer;font-family:Arial;font-weight:600;">✓ הפעל הכל</button>
-    <button onclick="setAllTrapsActive(false)" style="flex:1;font-size:11px;padding:5px 0;border:1px solid rgba(69,71,74,0.3);border-radius:6px;background:white;color:var(--text-muted);cursor:pointer;font-family:Arial;font-weight:600;">✕ כבה הכל</button>
-  </div>
   <div id="traps-filter-bar" style="background:var(--white);border-bottom:1px solid var(--border);padding:8px 12px;flex-shrink:0;">
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;">
       <div style="position:relative;">
@@ -279,11 +274,14 @@
         <div id="dd-plot" style="display:none;position:absolute;top:calc(100% + 4px);right:0;left:0;background:white;border:1px solid var(--border);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.12);z-index:500;max-height:200px;overflow-y:auto;padding:4px 0;"></div>
       </div>
     </div>
-    <div style="display:flex;align-items:center;gap:6px;margin-top:6px;">
+    <div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
       <span style="font-size:11px;color:var(--text-muted);flex-shrink:0;">סטטוס:</span>
-      <button id="fsb-active" onclick="setTrapStatusFilter('active')" style="flex:1;font-size:11px;padding:5px 0;border:1px solid var(--teal);border-radius:6px;background:var(--teal);color:white;cursor:pointer;font-family:Arial;font-weight:700;">פעיל</button>
-      <button id="fsb-all" onclick="setTrapStatusFilter('all')" style="flex:1;font-size:11px;padding:5px 0;border:1px solid var(--border);border-radius:6px;background:white;cursor:pointer;font-family:Arial;">הכל</button>
-      <button id="fsb-inactive" onclick="setTrapStatusFilter('inactive')" style="flex:1;font-size:11px;padding:5px 0;border:1px solid var(--border);border-radius:6px;background:white;cursor:pointer;font-family:Arial;">לא פעיל</button>
+      <select id="trap-status-select" onchange="setTrapStatusFilter(this.value)" style="flex:1;font-size:12px;padding:5px 6px;border:1px solid var(--border);border-radius:6px;background:white;font-family:Arial;color:var(--text);cursor:pointer;">
+        <option value="all">הכל</option>
+        <option value="active">פעיל</option>
+        <option value="inactive">לא פעיל</option>
+      </select>
+      <button id="master-trap-toggle" onclick="bulkToggleAll()" class="trap-toggle on" title="הפעל/כבה הכל" style="flex-shrink:0;"></button>
     </div>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px;">
       <button onclick="clearTrapFilter()" style="font-size:11px;color:var(--red);background:none;border:none;cursor:pointer;padding:0;font-family:Arial;">נקה סינון ✕</button>
@@ -354,7 +352,7 @@ let insects=[],traps=[],curTrapId=null,confirmCb=null;
 let selColor='#c0392b',dynFields=[],selTrapIns=null;
 let mapPickMode=false,mapPickMarker=null,curView='map';
 let mapShowInactive=false;
-let trapFilterStatus='active'; // 'all'|'active'|'inactive'
+let trapFilterStatus='all'; // 'all'|'active'|'inactive'
 const BACK={'insects':'map','insect-form':'insects','traps':'map','trap-form':'traps','inspection':'map','export':'map'};
 const COLORS=['#c0392b','#e67e22','#f1c40f','#27ae60','#2980b9','#8e44ad','#16a085','#2c3e50','#e91e63','#795548'];
 const GTB_H=70,BAR_H=56;
@@ -663,15 +661,8 @@ document.addEventListener('click',e=>{
 
 function setTrapStatusFilter(status) {
   trapFilterStatus = status;
-  ['all','active','inactive'].forEach(s => {
-    const btn = document.getElementById('fsb-'+s);
-    if(!btn) return;
-    const sel = s === status;
-    btn.style.background = sel ? (s==='inactive'?'rgba(69,71,74,0.4)':'var(--teal)') : 'var(--input-bg)';
-    btn.style.color = sel ? 'white' : '';
-    btn.style.fontWeight = sel ? '700' : '';
-    btn.style.borderColor = sel ? (s==='inactive'?'rgba(69,71,74,0.4)':'var(--teal)') : 'var(--border)';
-  });
+  const sel = document.getElementById('trap-status-select');
+  if(sel && sel.value !== status) sel.value = status;
   applyTrapFilter();
 }
 
@@ -767,6 +758,16 @@ async function toggleTrapActive(trapId, currentlyInactive) {
     renderTraps();
     renderMarkers();
   } catch(e) { showToast('שגיאה: '+e.message); }
+}
+
+
+async function bulkToggleAll() {
+  // If any trap is active, deactivate all; if all inactive, activate all
+  const anyActive = traps.some(t => t.active !== false);
+  const newState = !anyActive;
+  await setAllTrapsActive(newState);
+  const btn = document.getElementById('master-trap-toggle');
+  if(btn) { btn.classList.toggle('on', newState); }
 }
 
 async function setAllTrapsActive(active) {
