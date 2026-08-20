@@ -657,6 +657,7 @@ function contrastTextColor(hex) {
 
 // ── OBSERVATIONS (תצפיות) STATE ─────────────────────────────────────────────
 let obsPlotId = null, obsLat = null, obsLng = null;
+let curSurveyLat = null, curSurveyLng = null;
 let obsPestOrderMap = {};   // {pestId: orderIndex} — separate from Samples' insp_pests.sortOrder
 let obsSelectedPestId = null;
 let obsJustDragged = false;
@@ -1605,34 +1606,66 @@ async function openSurvey(id) {
 }
 
 // ── Build survey form ────────────────────────────────────────────────
+let surveyGpsToken = 0;  // increment on each new survey to invalidate stale GPS callbacks
+let surveyUserPickedPlot = false;
+
 async function buildSurveyForm(existing) {
   const body = document.getElementById('survey-form-body');
   const now = new Date();
   const dateVal = existing?.date || di(now);
   const timeVal = existing?.time || now.toTimeString().slice(0,5);
 
-  // Detect plot from GPS
-  let detectedPlotId = curSurveyPlotId;
-  let detectedZone = curSurveyZone;
-
-  if(!detectedPlotId) {
-    body.innerHTML = `<div style="text-align:center;padding:20px;color:var(--text-muted);">📡 מזהה מיקום...</div>`;
+  // For existing surveys (editing), keep the saved plot
+  if(existing) {
+    renderSurveyForm(dateVal, timeVal, curSurveyPlotId, curSurveyZone, false);
     navTo('survey-form');
-    try {
-      const pos = await new Promise((res,rej) => navigator.geolocation.getCurrentPosition(res, rej, {timeout:6000}));
+    return;
+  }
+
+  // New survey: show full form immediately, detect plot in background
+  surveyGpsToken++;
+  const myToken = surveyGpsToken;
+  surveyUserPickedPlot = false;
+  renderSurveyForm(dateVal, timeVal, null, '', true /* detecting */);
+  navTo('survey-form');
+
+  try {
+    const pos = await Promise.race([
+      new Promise((res,rej) => navigator.geolocation.getCurrentPosition(res, rej, {timeout:8000, enableHighAccuracy:true})),
+      new Promise(res => { window._surveyGpsStopCb = () => res(null); })
+    ]);
+    if(myToken !== surveyGpsToken || surveyUserPickedPlot) return; // stale or user picked manually
+    if(pos) {
       const {latitude:lat, longitude:lng} = pos.coords;
       const found = detectPlotFromGPS(lat, lng);
       if(found) {
-        detectedPlotId = found.plotId;
-        detectedZone = found.zone;
-        curSurveyPlotId = detectedPlotId;
-        curSurveyZone = detectedZone;
+        curSurveyPlotId = found.plotId;
+        curSurveyZone = found.zone;
+        applySurveyGpsResult(myToken, found.plotId, found.zone, dateVal, timeVal);
+      } else {
+        removeSurveyGpsHint(); // GPS worked but no plot matched — drop hint
       }
-    } catch(e) { /* GPS failed — user picks manually */ }
-  }
+    } else {
+      removeSurveyGpsHint(); // cancelled by user
+    }
+  } catch(e) { removeSurveyGpsHint(); }
+}
 
-  renderSurveyForm(dateVal, timeVal, detectedPlotId, detectedZone);
-  navTo('survey-form');
+function stopSurveyGps() {
+  surveyGpsToken++;   // invalidate any pending callback
+  surveyUserPickedPlot = true;
+  if(window._surveyGpsStopCb) { window._surveyGpsStopCb(); window._surveyGpsStopCb = null; }
+  removeSurveyGpsHint();
+}
+
+function applySurveyGpsResult(token, plotId, zone, dateVal, timeVal) {
+  if(token !== surveyGpsToken || surveyUserPickedPlot) return;
+  renderSurveyForm(dateVal, timeVal, plotId, zone, false);
+}
+
+function removeSurveyGpsHint() {
+  const hint = document.getElementById('survey-gps-hint');
+  if(hint) hint.remove();
 }
 
 function detectPlotFromGPS(lat, lng) {
@@ -1681,7 +1714,84 @@ function calcZoneInPolygon(lat, lng, polygon) {
 
 const ZONES = ['צפון','צפון מזרח','מזרח','דרום מזרח','דרום','דרום מערב','מערב','צפון מערב','מרכז'];
 
-function renderSurveyForm(dateVal, timeVal, plotId, zone) {
+
+// ── Survey embedded map picker ─────────────────────────────────────────────
+let surveyGMap = null, surveyGMarker = null;
+let surveyMapType = 'hybrid';
+let surveyMapPendingLat = null, surveyMapPendingLng = null;
+let surveyMapDateVal = '', surveyMapTimeVal = '';
+
+function toggleSurveyMapPicker() {
+  const panel = document.getElementById('survey-map-panel');
+  if(panel.style.display === 'block') { panel.style.display = 'none'; return; }
+  panel.style.display = 'block';
+  surveyMapDateVal = document.getElementById('sv-date')?.value || '';
+  surveyMapTimeVal = document.getElementById('sv-time')?.value || '';
+  initSurveyMapIfNeeded();
+}
+
+async function initSurveyMapIfNeeded() {
+  await loadGoogleMapsScript(); // reuse the same loader from obs module
+  const canvas = document.getElementById('survey-map-canvas');
+  const hasPrev = (surveyMapPendingLat != null);
+  const startLat = hasPrev ? surveyMapPendingLat : (curSurveyLat || 31.8);
+  const startLng = hasPrev ? surveyMapPendingLng : (curSurveyLng || 34.9);
+  if(!surveyGMap) {
+    surveyGMap = new google.maps.Map(canvas, {
+      center:{lat:startLat, lng:startLng}, zoom: hasPrev ? 18 : 14,
+      mapTypeId: surveyMapType,
+      streetViewControl:false, mapTypeControl:false, fullscreenControl:false,
+    });
+    surveyGMarker = new google.maps.Marker({
+      position:{lat:startLat, lng:startLng}, map:surveyGMap, draggable:true,
+    });
+    const sync = () => { const p=surveyGMarker.getPosition(); surveyMapPendingLat=p.lat(); surveyMapPendingLng=p.lng(); };
+    surveyGMarker.addListener('dragend', sync);
+    surveyGMap.addListener('click', e => { surveyGMarker.setPosition(e.latLng); sync(); });
+  } else {
+    google.maps.event.trigger(surveyGMap, 'resize');
+    surveyGMap.panTo({lat:startLat, lng:startLng});
+  }
+  if(!hasPrev) centerSurveyMapGps();
+}
+
+function centerSurveyMapGps() {
+  if(!navigator.geolocation || !surveyGMap) return;
+  navigator.geolocation.getCurrentPosition(p => {
+    const ll = {lat:p.coords.latitude, lng:p.coords.longitude};
+    surveyGMap.panTo(ll); surveyGMap.setZoom(18);
+    surveyGMarker.setPosition(ll);
+    surveyMapPendingLat = ll.lat; surveyMapPendingLng = ll.lng;
+  }, () => showToast('לא ניתן לקבל מיקום'));
+}
+
+function toggleSurveyMapType() {
+  surveyMapType = surveyMapType === 'hybrid' ? 'roadmap' : 'hybrid';
+  if(surveyGMap) surveyGMap.setMapTypeId(surveyMapType);
+  const btn = document.getElementById('survey-map-type-btn');
+  if(btn) btn.textContent = surveyMapType === 'hybrid' ? '🛰️ לוויין' : '🗺️ מפה';
+}
+
+function closeSurveyMapPicker(confirm) {
+  const panel = document.getElementById('survey-map-panel');
+  if(panel) panel.style.display = 'none';
+  if(confirm && surveyMapPendingLat != null && surveyMapPendingLng != null) {
+    curSurveyLat = surveyMapPendingLat; curSurveyLng = surveyMapPendingLng;
+    // Try to detect plot from chosen location
+    const found = detectPlotFromGPS(curSurveyLat, curSurveyLng);
+    if(found && !surveyUserPickedPlot) {
+      curSurveyPlotId = found.plotId; curSurveyZone = found.zone;
+      const dateVal = document.getElementById('sv-date')?.value || di(new Date());
+      const timeVal = document.getElementById('sv-time')?.value || '';
+      renderSurveyForm(dateVal, timeVal, found.plotId, found.zone, false);
+      showToast('מיקום זוהה: ' + (plots.find(p=>p.id===found.plotId)?.name || ''));
+    } else {
+      showToast('מיקום נשמר — בחר חלקה ידנית');
+    }
+  }
+}
+
+function renderSurveyForm(dateVal, timeVal, plotId, zone, detecting=false) {
   const _prePlot = plots.find(p=>p.id===plotId);
   const _preCrop = _prePlot?.crop || '';
   const plot = plots.find(p=>p.id===plotId);
@@ -1772,6 +1882,25 @@ function renderSurveyForm(dateVal, timeVal, plotId, zone) {
   body.innerHTML = `
     <!-- Header -->
     <div class="survey-hdr-section">
+      ${detecting ? `<div id="survey-gps-hint" style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:rgba(19,79,92,0.07);border-radius:8px;margin-bottom:8px;font-size:12px;color:var(--teal);">
+        <span>📡 מזהה מיקום ברקע...</span>
+        <button onclick="stopSurveyGps()" style="background:none;border:1.5px solid var(--teal);border-radius:6px;padding:4px 10px;font-family:Arial;font-size:11px;font-weight:600;color:var(--teal);cursor:pointer;">עצור ובחר ידנית</button>
+      </div>` : ''}
+      <div style="display:flex;gap:8px;margin-bottom:8px;">
+        <button onclick="toggleSurveyMapPicker()" style="flex:1;padding:9px;background:white;border:1.5px solid var(--teal);border-radius:8px;font-family:Arial;font-size:12px;font-weight:600;color:var(--teal);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px;">
+          🗺️ בחר מיקום במפה
+        </button>
+      </div>
+      <div id="survey-map-panel" style="display:none;margin-bottom:8px;">
+        <div id="survey-map-canvas" style="width:100%;height:240px;border-radius:10px;overflow:hidden;background:#e0e0e0;margin-bottom:6px;position:relative;">
+          <button onclick="centerSurveyMapGps()" style="position:absolute;top:8px;right:8px;z-index:10;background:white;border:none;border-radius:50%;width:36px;height:36px;font-size:18px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.2);display:flex;align-items:center;justify-content:center;">📍</button>
+          <button id="survey-map-type-btn" onclick="toggleSurveyMapType()" style="position:absolute;top:8px;left:8px;z-index:10;background:white;border:none;border-radius:8px;padding:5px 10px;font-family:Arial;font-size:12px;font-weight:500;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.2);">🛰️ לוויין</button>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button onclick="closeSurveyMapPicker(false)" style="flex:1;padding:9px;background:rgb(69,71,74);color:white;border:none;border-radius:8px;font-family:Arial;font-size:13px;font-weight:600;cursor:pointer;">ביטול</button>
+          <button onclick="closeSurveyMapPicker(true)" style="flex:1;padding:9px;background:var(--teal);color:white;border:none;border-radius:8px;font-family:Arial;font-size:13px;font-weight:600;cursor:pointer;">✓ אישור מיקום</button>
+        </div>
+      </div>
       <div style="display:flex;gap:10px;align-items:flex-end;">
         <div class="fr" style="flex:1;">
           <label class="frl">גידול</label>
@@ -1941,6 +2070,7 @@ function onSurveyCropChange(crop) {
 }
 
 function onSurveyPlotChange(plotId) {
+  surveyUserPickedPlot = true;
   curSurveyPlotId = plotId;
   const plot = plots.find(p=>p.id===plotId);
   const crop = plot?.crop || '';
@@ -2408,6 +2538,10 @@ function renderObsReportBody(prefillNote, prefillReco) {
       <button type="button" class="obs-loc-btn" id="obs-loc-toggle-btn" onclick="toggleObsMap()">📍 <span id="obs-loc-toggle-label">${hasLoc?'הצג / עדכן מיקום על המפה':'הוסף מיקום על המפה'}</span></button>
       <div id="obs-map-panel" style="display:none;">
         <div id="obs-map-canvas" style="width:100%;height:260px;border-radius:10px;overflow:hidden;margin:8px 0;background:#e0e0e0;"></div>
+        <div style="display:flex;gap:6px;margin-bottom:6px;">
+          <button type="button" onclick="obsMapGpsCenter()" style="flex:1;padding:7px;background:white;border:1.5px solid var(--teal);border-radius:7px;font-family:Arial;font-size:12px;font-weight:600;color:var(--teal);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:4px;">📍 מיקומי</button>
+          <button type="button" id="obs-map-type-btn" onclick="toggleObsMapType()" style="flex:1;padding:7px;background:white;border:1.5px solid var(--border);border-radius:7px;font-family:Arial;font-size:12px;font-weight:500;color:var(--text);cursor:pointer;">🛰️ לוויין</button>
+        </div>
         <p style="font-size:11px;color:var(--text-muted);margin:0 0 8px;">גררו את הסיכה או הקישו על המפה למיקום המדויק</p>
         <div style="display:flex;gap:8px;margin-bottom:4px;">
           <button type="button" class="btn-sec" style="flex:1;width:auto;" onclick="closeObsMap(false)">ביטול</button>
@@ -2477,6 +2611,25 @@ async function toggleObsMap() {
     syncPending();
   });
   google.maps.event.trigger(obsGMap, 'resize'); // canvas was just made visible
+}
+
+
+function obsMapGpsCenter() {
+  if(!navigator.geolocation || !obsGMap) return;
+  navigator.geolocation.getCurrentPosition(p => {
+    const ll = new google.maps.LatLng(p.coords.latitude, p.coords.longitude);
+    obsGMap.panTo(ll); obsGMap.setZoom(18);
+    obsGMarker.setPosition(ll);
+    obsMapPendingLat = p.coords.latitude; obsMapPendingLng = p.coords.longitude;
+  }, () => showToast('לא ניתן לקבל מיקום'));
+}
+
+let obsMapTypeId = 'hybrid';
+function toggleObsMapType() {
+  obsMapTypeId = obsMapTypeId === 'hybrid' ? 'roadmap' : 'hybrid';
+  if(obsGMap) obsGMap.setMapTypeId(obsMapTypeId);
+  const btn = document.getElementById('obs-map-type-btn');
+  if(btn) btn.textContent = obsMapTypeId === 'hybrid' ? '🛰️ לוויין' : '🗺️ מפה';
 }
 
 function closeObsMap(confirmChoice) {
