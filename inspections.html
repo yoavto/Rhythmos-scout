@@ -2543,10 +2543,10 @@ function onObsFormCropChange(crop) {
 }
 
 function onObsPlotChange(plotId) {
-  obsUserPickedPlot = true; // manual choice always wins over a late GPS result
+  obsUserPickedPlot = true;
   obsPlotId = plotId;
   const plot = plots.find(p=>p.id===plotId);
-  document.getElementById('obs-crop-line').textContent = plot ? `${plot.crop||''}${plot.variety?' · '+plot.variety:''}` : '';
+  // obs-crop-line removed in new header; just re-render pest grid
   renderObsPestGrid(plot?.crop || '');
 }
 
