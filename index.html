@@ -485,13 +485,14 @@ async function openTrapBubble(trapId, marker) {
     }
   } catch(e) { lastInspLabel = '—'; }
 
+  const isInactive = trap?.active === false;
   const infoWindow = new google.maps.InfoWindow({
     content: `<div dir="rtl" style="font-family:Arial;min-width:190px;padding:4px 2px;">
       <div style="font-weight:700;font-size:14px;color:#89000a;margin-bottom:3px;">${ins?.name || 'מזיק לא ידוע'}</div>
       <div style="font-size:11px;color:#666;margin-bottom:4px;">${trapLabel}</div>
       <div style="font-size:11px;color:#444;margin-bottom:${lastInspComment?'4px':'10px'};">תאריך סקר אחרון: <strong>${lastInspLabel}</strong></div>
       ${lastInspComment?`<div style="font-size:11px;color:#666;margin-bottom:10px;font-style:italic;">${lastInspComment}</div>`:''}
-      <div style="display:flex;gap:8px;">
+      <div style="display:flex;gap:8px;margin-bottom:6px;">
         <button onclick="closeBubbleAndDo('new','${trapId}')"
           style="flex:1;padding:7px 6px;background:#89000a;color:white;border:none;border-radius:7px;font-family:Arial;font-size:12px;font-weight:600;cursor:pointer;">
           ✚ סקר חדש
@@ -501,6 +502,10 @@ async function openTrapBubble(trapId, marker) {
           ✏️ דיווח אחרון
         </button>
       </div>
+      <button onclick="toggleTrapActiveFromMap('${trapId}')"
+        style="width:100%;padding:7px;background:${isInactive?'white':'rgba(69,71,74,0.07)'};color:${isInactive?'var(--teal)':'#555'};border:1.5px solid ${isInactive?'var(--teal)':'#ccc'};border-radius:7px;font-family:Arial;font-size:12px;font-weight:600;cursor:pointer;">
+        ${isInactive ? '✓ הפעל מלכודת' : '✕ כבה מלכודת'}
+      </button>
     </div>`,
     disableAutoPan: false
   });
@@ -534,7 +539,7 @@ async function openLastInspection(trapId) {
   } catch(e) { showToast('שגיאה בטעינת דיווח: ' + e.message); }
 }
 
-function addMarker(trap){if(!map||!trap.lat||!trap.lng)return;const ins=insects.find(i=>i.id===trap.insectId);const col=ins?.color||'#8B1A1A';const m=new google.maps.Marker({position:{lat:trap.lat,lng:trap.lng},map,title:`${ins?.name||'?'} | ${trap.plot||''} שורה ${trap.row||''} עץ ${trap.tree||''}`,icon:{path:'M 0,-16 C -6,-16 -10,-11 -10,-6 C -10,2 0,14 0,14 C 0,14 10,2 10,-6 C 10,-11 6,-16 0,-16 Z',fillColor:col,fillOpacity:0.93,strokeColor:'white',strokeWeight:1.5,scale:1,anchor:new google.maps.Point(0,14)},zIndex:100});m.addListener('click',()=>openTrapBubble(trap.id,m));trapMarkers[trap.id]=m;}
+function addMarker(trap){if(!map||!trap.lat||!trap.lng)return;const ins=insects.find(i=>i.id===trap.insectId);const col=ins?.color||'#8B1A1A';const m=new google.maps.Marker({position:{lat:trap.lat,lng:trap.lng},map,title:`${ins?.name||'?'} | ${trap.plot||''} שורה ${trap.row||''} עץ ${trap.tree||''}`,icon:{path:'M 0,-16 C -6,-16 -10,-11 -10,-6 C -10,2 0,14 0,14 C 0,14 10,2 10,-6 C 10,-11 6,-16 0,-16 Z',fillColor:col,fillOpacity:trap.active===false?0.45:0.93,strokeColor:trap.active===false?'#222':'white',strokeWeight:trap.active===false?2:1.5,scale:1,anchor:new google.maps.Point(0,14)},zIndex:100});m.addListener('click',()=>openTrapBubble(trap.id,m));trapMarkers[trap.id]=m;}
 function startMapPick(){
   if(!map){showToast('המפה לא נטענה עדיין');return;}
   mapPickMode=true;
@@ -750,6 +755,20 @@ async function saveInspection(){const trap=traps.find(t=>t.id===curTrapId);const
   }
   curInspectionId=null;if(phR&&phD){await db.collection('traps').doc(curTrapId).update({pheromoneDate:phD});await loadTraps();renderMarkers();}showToast('הסקר נשמר');navTo('map');}catch(e){showToast('שגיאה: '+e.message);}}
 function prepExport(){const now=new Date(),from=new Date(now.getFullYear(),now.getMonth(),1);document.getElementById('ex-from').value=di(from);document.getElementById('ex-to').value=di(now);const sel=document.getElementById('ex-ins');sel.innerHTML='<option value="">כל המזיקים</option>'+insects.map(i=>`<option value="${i.id}">${i.name}</option>`).join('');}
+
+
+async function toggleTrapActiveFromMap(trapId) {
+  if(activeBubble) { activeBubble.close(); activeBubble = null; }
+  const trap = traps.find(t=>t.id===trapId);
+  if(!trap) return;
+  const newActive = trap.active === false; // flip
+  try {
+    await db.collection('traps').doc(trapId).update({active: newActive});
+    await loadTraps();
+    renderMarkers();
+    renderTraps();
+  } catch(e) { showToast('שגיאה: '+e.message); }
+}
 
 async function toggleTrapActive(trapId, currentlyInactive) {
   try {
