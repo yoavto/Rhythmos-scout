@@ -657,6 +657,7 @@ function contrastTextColor(hex) {
 
 // ── OBSERVATIONS (תצפיות) STATE ─────────────────────────────────────────────
 let obsPlotId = null, obsLat = null, obsLng = null;
+let obsZone = '', obsDate = '', obsTime = '';
 let curSurveyLat = null, curSurveyLng = null;
 let obsPestOrderMap = {};   // {pestId: orderIndex} — separate from Samples' insp_pests.sortOrder
 let obsSelectedPestId = null;
@@ -1651,6 +1652,90 @@ async function buildSurveyForm(existing) {
   } catch(e) { removeSurveyGpsHint(); }
 }
 
+
+function stopObsGps() {
+  obsFormToken++;             // invalidate any pending GPS callback
+  obsUserPickedPlot = false;  // reset so manual selection isn't blocked
+  if(window._obsGpsStopCb) { window._obsGpsStopCb(); window._obsGpsStopCb = null; }
+  const hint = document.getElementById('obs-gps-hint');
+  if(hint) hint.remove();
+}
+
+function toggleObsMapInHeader() {
+  const panel = document.getElementById('obs-header-map-panel');
+  if(!panel) return;
+  if(panel.style.display === 'block') { panel.style.display = 'none'; return; }
+  panel.innerHTML = `
+    <div style="position:relative;">
+      <div id="obs-header-map-canvas" style="width:100%;height:220px;border-radius:10px;overflow:hidden;background:#e0e0e0;margin-bottom:6px;"></div>
+      <button onclick="obsHeaderMapGpsCenter()" style="position:absolute;top:8px;right:8px;z-index:10;background:white;border:none;border-radius:50%;width:34px;height:34px;font-size:16px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.2);">📍</button>
+      <button id="obs-hdr-map-type-btn" onclick="toggleObsHeaderMapType()" style="position:absolute;top:8px;left:8px;z-index:10;background:white;border:none;border-radius:7px;padding:4px 8px;font-family:Arial;font-size:11px;font-weight:500;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.2);">🛰️ לוויין</button>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:4px;">
+      <button onclick="closeObsHeaderMap(false)" style="flex:1;padding:8px;background:rgb(69,71,74);color:white;border:none;border-radius:8px;font-family:Arial;font-size:12px;font-weight:600;cursor:pointer;">ביטול</button>
+      <button onclick="closeObsHeaderMap(true)" style="flex:1;padding:8px;background:var(--teal);color:white;border:none;border-radius:8px;font-family:Arial;font-size:12px;font-weight:600;cursor:pointer;">✓ אישור מיקום</button>
+    </div>
+  `;
+  panel.style.display = 'block';
+  initObsHeaderMap();
+}
+
+let obsHdrMap = null, obsHdrMarker = null, obsHdrMapType = 'hybrid';
+let obsHdrPendingLat = null, obsHdrPendingLng = null;
+
+async function initObsHeaderMap() {
+  await loadGoogleMapsScript();
+  const canvas = document.getElementById('obs-header-map-canvas');
+  if(!canvas) return;
+  const startLat = obsLat || 31.8, startLng = obsLng || 34.9;
+  if(!obsHdrMap) {
+    obsHdrMap = new google.maps.Map(canvas, {
+      center:{lat:startLat,lng:startLng}, zoom: obsLat ? 17 : 14,
+      mapTypeId:'hybrid', streetViewControl:false, mapTypeControl:false, fullscreenControl:false
+    });
+    obsHdrMarker = new google.maps.Marker({position:{lat:startLat,lng:startLng},map:obsHdrMap,draggable:true});
+    const sync = () => { const p=obsHdrMarker.getPosition(); obsHdrPendingLat=p.lat(); obsHdrPendingLng=p.lng(); };
+    obsHdrMarker.addListener('dragend',sync);
+    obsHdrMap.addListener('click',e=>{obsHdrMarker.setPosition(e.latLng);sync();});
+  } else {
+    google.maps.event.trigger(obsHdrMap,'resize');
+  }
+  if(!obsLat) obsHeaderMapGpsCenter();
+}
+
+function obsHeaderMapGpsCenter() {
+  if(!navigator.geolocation||!obsHdrMap) return;
+  navigator.geolocation.getCurrentPosition(p=>{
+    const ll={lat:p.coords.latitude,lng:p.coords.longitude};
+    obsHdrMap.panTo(ll); obsHdrMap.setZoom(18);
+    obsHdrMarker?.setPosition(ll);
+    obsHdrPendingLat=ll.lat; obsHdrPendingLng=ll.lng;
+  },()=>showToast('לא ניתן לקבל מיקום'));
+}
+
+function toggleObsHeaderMapType() {
+  obsHdrMapType = obsHdrMapType==='hybrid'?'roadmap':'hybrid';
+  if(obsHdrMap) obsHdrMap.setMapTypeId(obsHdrMapType);
+  const btn=document.getElementById('obs-hdr-map-type-btn');
+  if(btn) btn.textContent=obsHdrMapType==='hybrid'?'🛰️ לוויין':'🗺️ מפה';
+}
+
+function closeObsHeaderMap(confirm) {
+  const panel = document.getElementById('obs-header-map-panel');
+  if(panel) panel.style.display = 'none';
+  if(confirm && obsHdrPendingLat != null) {
+    obsLat = obsHdrPendingLat; obsLng = obsHdrPendingLng;
+    const found = detectPlotFromGPS(obsLat, obsLng);
+    if(found && !obsUserPickedPlot) {
+      obsPlotId = found.plotId; obsUserPickedPlot = false;
+      renderObsForm(false);
+      showToast('מיקום זוהה: '+(plots.find(p=>p.id===found.plotId)?.name||''));
+    } else {
+      showToast('מיקום נשמר — בחר חלקה ידנית');
+    }
+  }
+}
+
 function stopSurveyGps() {
   surveyGpsToken++;   // invalidate any pending callback
   surveyUserPickedPlot = true;
@@ -1886,11 +1971,6 @@ function renderSurveyForm(dateVal, timeVal, plotId, zone, detecting=false) {
         <span>📡 מזהה מיקום ברקע...</span>
         <button onclick="stopSurveyGps()" style="background:none;border:1.5px solid var(--teal);border-radius:6px;padding:4px 10px;font-family:Arial;font-size:11px;font-weight:600;color:var(--teal);cursor:pointer;">עצור ובחר ידנית</button>
       </div>` : ''}
-      <div style="display:flex;gap:8px;margin-bottom:8px;">
-        <button onclick="toggleSurveyMapPicker()" style="flex:1;padding:9px;background:white;border:1.5px solid var(--teal);border-radius:8px;font-family:Arial;font-size:12px;font-weight:600;color:var(--teal);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px;">
-          🗺️ בחר מיקום במפה
-        </button>
-      </div>
       <div id="survey-map-panel" style="display:none;margin-bottom:8px;">
         <div id="survey-map-canvas" style="width:100%;height:240px;border-radius:10px;overflow:hidden;background:#e0e0e0;margin-bottom:6px;position:relative;">
           <button onclick="centerSurveyMapGps()" style="position:absolute;top:8px;right:8px;z-index:10;background:white;border:none;border-radius:50%;width:36px;height:36px;font-size:18px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.2);display:flex;align-items:center;justify-content:center;">📍</button>
@@ -1934,6 +2014,9 @@ function renderSurveyForm(dateVal, timeVal, plotId, zone, detecting=false) {
           <input class="fin" type="time" id="sv-time" value="${timeVal}"/>
         </div>
       </div>
+      <button onclick="toggleSurveyMapPicker()" style="width:100%;padding:9px;margin-top:8px;background:white;border:1.5px solid var(--teal);border-radius:8px;font-family:Arial;font-size:13px;font-weight:600;color:var(--teal);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;">
+        📍 בחר מיקום במפה
+      </button>
     </div>
     <!-- Pest cards -->
     <div id="pest-cards-container">${pestCardsHtml}</div>
@@ -2339,6 +2422,7 @@ let obsPendingGpsApply = null;    // queued {token, plotId} if GPS resolved whil
 
 function startObservation() {
   obsPlotId = null; obsLat = null; obsLng = null;
+  obsZone = ''; obsDate = di(new Date()); obsTime = new Date().toTimeString().slice(0,5);
   obsUserPickedPlot = false;
   obsPlotSelectFocused = false;
   obsPendingGpsApply = null;
@@ -2384,18 +2468,53 @@ function renderObsForm(detecting) {
     ? plots.map(p => `<option value="${p.id}" ${p.id===obsPlotId?'selected':''}>${p.name}</option>`).join('')
     : '';
 
+  // Build same header structure as survey form
+  const allCrops = [...new Set(plots.map(p=>p.crop).filter(Boolean))].sort();
+  const crop = plot?.crop || '';
+  const cropPlots = obsPlotId ? plots : (crop ? plots.filter(p=>p.crop===crop) : []);
   hdrWrap.innerHTML = `
-    <div class="obs-plot-hdr">
-      <label class="frl">חלקה</label>
-      ${plots.length
-        ? `<select class="fin" id="obs-plot-select" onchange="onObsPlotChange(this.value)">
-             <option value="" ${obsPlotId?'':'selected'} disabled>בחר חלקה...</option>
-             ${plotOptions}
-           </select>`
-        : `<div style="font-size:13px;color:var(--text-muted);">אין חלקות מוגדרות</div>`}
-      <div class="obs-crop-line" id="obs-crop-line">
-        ${detecting ? '📡 מזהה מיקום ברקע...' : (plot ? `${plot.crop||''}${plot.variety?' · '+plot.variety:''}` : 'בחר חלקה כדי להמשיך')}
+    <div class="survey-hdr-section">
+      ${detecting ? `<div id="obs-gps-hint" style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:rgba(19,79,92,0.07);border-radius:8px;margin-bottom:8px;font-size:12px;color:var(--teal);">
+        <span>📡 מזהה מיקום ברקע...</span>
+        <button onclick="stopObsGps()" style="background:none;border:1.5px solid var(--teal);border-radius:6px;padding:4px 10px;font-family:Arial;font-size:11px;font-weight:600;color:var(--teal);cursor:pointer;">עצור ובחר ידנית</button>
+      </div>` : ''}
+      <div style="display:flex;gap:10px;align-items:flex-end;">
+        <div class="fr" style="flex:1;">
+          <label class="frl">גידול</label>
+          <select class="fin" id="obs-crop-sel" onchange="onObsFormCropChange(this.value)">
+            <option value="">בחר גידול...</option>
+            ${allCrops.map(c=>`<option value="${c}" ${c===crop?'selected':''}>${c}</option>`).join('')}
+          </select>
+        </div>
+        <div class="fr" style="flex:1;">
+          <label class="frl">חלקה</label>
+          <select class="fin" id="obs-plot-select" onchange="onObsPlotChange(this.value)" ${crop?'':'disabled'}>
+            <option value="" ${obsPlotId?'':'selected'} disabled>בחר חלקה...</option>
+            ${crop ? plots.filter(p=>p.crop===crop).map(p=>`<option value="${p.id}" ${p.id===obsPlotId?'selected':''}>${p.name}</option>`).join('') : ''}
+          </select>
+        </div>
+        <div class="fr" style="flex:1;">
+          <label class="frl">אזור</label>
+          <select class="fin" id="obs-zone-sel" onchange="obsZone=this.value">
+            <option value="">—</option>
+            ${ZONES.map(z=>`<option value="${z}" ${z===obsZone?'selected':''}>${z}</option>`).join('')}
+          </select>
+        </div>
       </div>
+      <div style="display:flex;gap:10px;margin-top:8px;">
+        <div class="fr" style="flex:1;">
+          <label class="frl">תאריך</label>
+          <input class="fin" type="text" id="obs-hdr-date" placeholder="DD/MM/YYYY" value="${isoToDisplay(obsDate)}" pattern="\d{2}/\d{2}/\d{4}" onchange="obsDate=dateInputVal('obs-hdr-date')"/>
+        </div>
+        <div class="fr" style="flex:1;">
+          <label class="frl">שעה</label>
+          <input class="fin" type="time" id="obs-hdr-time" value="${obsTime}" onchange="obsTime=this.value"/>
+        </div>
+      </div>
+      <button onclick="toggleObsMapInHeader()" style="width:100%;padding:9px;margin-top:8px;background:white;border:1.5px solid var(--teal);border-radius:8px;font-family:Arial;font-size:13px;font-weight:600;color:var(--teal);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;">
+        📍 בחר מיקום במפה
+      </button>
+      <div id="obs-header-map-panel" style="display:none;margin-top:8px;"></div>
     </div>
   `;
   const sel = document.getElementById('obs-plot-select');
@@ -2411,6 +2530,17 @@ function renderObsForm(detecting) {
     });
   }
   renderObsPestGrid(crop);
+}
+
+
+function onObsFormCropChange(crop) {
+  obsPlotId = null;
+  const plotSel = document.getElementById('obs-plot-select');
+  if(plotSel) {
+    plotSel.disabled = !crop;
+    plotSel.innerHTML = '<option value="" selected disabled>בחר חלקה...</option>' +
+      (crop ? plots.filter(p=>p.crop===crop).map(p=>`<option value="${p.id}">${p.name}</option>`).join('') : '');
+  }
 }
 
 function onObsPlotChange(plotId) {
@@ -2695,9 +2825,10 @@ async function saveObsReport() {
   const now = new Date();
   const data = {
     plotId: obsPlotId, plotName: plot?.name||'', crop: plot?.crop||'', variety: plot?.variety||'',
+    zone: obsZone||'',
     pestId: obsSelectedPestId, pestName: pest?.name||'',
     note, recommendations: reco,
-    date: di(now), time: now.toTimeString().slice(0,5),
+    date: obsDate || di(now), time: obsTime || now.toTimeString().slice(0,5),
     location: (obsLat!=null && obsLng!=null) ? new firebase.firestore.GeoPoint(obsLat, obsLng) : null,
     createdAt: firebase.firestore.FieldValue.serverTimestamp(),
     createdBy: auth.currentUser?.email || '',
