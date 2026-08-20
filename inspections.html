@@ -2470,8 +2470,7 @@ function renderObsForm(detecting) {
 
   // Build same header structure as survey form
   const allCrops = [...new Set(plots.map(p=>p.crop).filter(Boolean))].sort();
-  const crop = plot?.crop || '';
-  const cropPlots = obsPlotId ? plots : (crop ? plots.filter(p=>p.crop===crop) : []);
+  // 'crop' already declared above as: const crop = plot?.crop || ''
   hdrWrap.innerHTML = `
     <div class="survey-hdr-section">
       ${detecting ? `<div id="obs-gps-hint" style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:rgba(19,79,92,0.07);border-radius:8px;margin-bottom:8px;font-size:12px;color:var(--teal);">
