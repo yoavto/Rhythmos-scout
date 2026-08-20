@@ -193,6 +193,15 @@
     .bnav-btn.active{color:var(--red);font-weight:700;background:rgba(137,10,10,0.08);}
     .bnav-icon{font-size:22px;line-height:1;}
 
+  
+    .trap-toggle{position:relative;width:36px;height:20px;background:rgba(69,71,74,0.3);
+      border-radius:10px;cursor:pointer;transition:background 0.2s;flex-shrink:0;border:none;padding:0;}
+    .trap-toggle.on{background:var(--teal);}
+    .trap-toggle::after{content:'';position:absolute;top:2px;right:2px;width:16px;height:16px;
+      background:white;border-radius:50%;transition:transform 0.2s;box-shadow:0 1px 3px rgba(0,0,0,0.2);}
+    .trap-toggle.on::after{transform:translateX(-16px);}
+    .trap-inactive-label{font-size:11px;color:var(--text-muted);opacity:0.6;}
+
   </style>
 </head>
 <body>
@@ -233,7 +242,7 @@
   </div>
   <div id="map-pick-bar" style="display:none;position:absolute;bottom:16px;left:50%;transform:translateX(-50%);z-index:21;pointer-events:auto;">
     <button onclick="saveMapPickLocation()" style="padding:12px 28px;background:var(--teal);color:white;border:none;border-radius:10px;font-family:Arial,sans-serif;font-size:14px;font-weight:700;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,0.25);">שמור מיקום זה</button>
-  </div><button class="map-type-btn" onclick="toggleMapType()">🛰️ לוויין</button><button class="map-fab" onclick="locateMe()" title="מיקום נוכחי">📍</button></div></div>
+  </div><button class="map-type-btn" onclick="toggleMapType()">🛰️ לוויין</button><button class="map-type-btn" id="map-inactive-btn" onclick="toggleMapInactive()" style="top:48px;">👁 לא פעילות</button><button class="map-fab" onclick="locateMe()" title="מיקום נוכחי">📍</button></div></div>
 <div class="view" id="view-insects"><div class="sc" id="insects-list"></div></div>
 <div class="view" id="view-insect-form">
   <div class="fv"><input type="hidden" id="if-id"/>
@@ -244,6 +253,11 @@
   <div class="ffoot"><button class="btn-sec" onclick="navTo('insects')">ביטול</button><button class="btn-sav" onclick="saveInsect()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> שמור</button></div>
 </div>
 <div class="view" id="view-traps">
+  <div style="background:var(--white);border-bottom:1px solid var(--border);padding:6px 12px;flex-shrink:0;display:flex;gap:6px;align-items:center;">
+    <span style="font-size:11px;color:var(--text-muted);">הפעל/כבה הכל:</span>
+    <button onclick="setAllTrapsActive(true)" style="flex:1;font-size:11px;padding:5px 0;border:1px solid var(--teal);border-radius:6px;background:white;color:var(--teal);cursor:pointer;font-family:Arial;font-weight:600;">✓ הפעל הכל</button>
+    <button onclick="setAllTrapsActive(false)" style="flex:1;font-size:11px;padding:5px 0;border:1px solid rgba(69,71,74,0.3);border-radius:6px;background:white;color:var(--text-muted);cursor:pointer;font-family:Arial;font-weight:600;">✕ כבה הכל</button>
+  </div>
   <div id="traps-filter-bar" style="background:var(--white);border-bottom:1px solid var(--border);padding:8px 12px;flex-shrink:0;">
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;">
       <div style="position:relative;">
@@ -265,7 +279,13 @@
         <div id="dd-plot" style="display:none;position:absolute;top:calc(100% + 4px);right:0;left:0;background:white;border:1px solid var(--border);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.12);z-index:500;max-height:200px;overflow-y:auto;padding:4px 0;"></div>
       </div>
     </div>
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;">
+    <div style="display:flex;align-items:center;gap:6px;margin-top:6px;">
+      <span style="font-size:11px;color:var(--text-muted);flex-shrink:0;">סטטוס:</span>
+      <button id="fsb-active" onclick="setTrapStatusFilter('active')" style="flex:1;font-size:11px;padding:5px 0;border:1px solid var(--teal);border-radius:6px;background:var(--teal);color:white;cursor:pointer;font-family:Arial;font-weight:700;">פעיל</button>
+      <button id="fsb-all" onclick="setTrapStatusFilter('all')" style="flex:1;font-size:11px;padding:5px 0;border:1px solid var(--border);border-radius:6px;background:white;cursor:pointer;font-family:Arial;">הכל</button>
+      <button id="fsb-inactive" onclick="setTrapStatusFilter('inactive')" style="flex:1;font-size:11px;padding:5px 0;border:1px solid var(--border);border-radius:6px;background:white;cursor:pointer;font-family:Arial;">לא פעיל</button>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px;">
       <button onclick="clearTrapFilter()" style="font-size:11px;color:var(--red);background:none;border:none;cursor:pointer;padding:0;font-family:Arial;">נקה סינון ✕</button>
       <span id="trap-count" style="font-size:11px;color:rgba(69,71,74,0.6);"></span>
     </div>
@@ -333,6 +353,8 @@ let map=null,mapType='hybrid',trapMarkers={};
 let insects=[],traps=[],curTrapId=null,confirmCb=null;
 let selColor='#c0392b',dynFields=[],selTrapIns=null;
 let mapPickMode=false,mapPickMarker=null,curView='map';
+let mapShowInactive=false;
+let trapFilterStatus='active'; // 'all'|'active'|'inactive'
 const BACK={'insects':'map','insect-form':'insects','traps':'map','trap-form':'traps','inspection':'map','export':'map'};
 const COLORS=['#c0392b','#e67e22','#f1c40f','#27ae60','#2980b9','#8e44ad','#16a085','#2c3e50','#e91e63','#795548'];
 const GTB_H=70,BAR_H=56;
@@ -384,9 +406,20 @@ function initMap(){
 
   renderMarkers();
 }
+
+function toggleMapInactive() {
+  mapShowInactive = !mapShowInactive;
+  const btn = document.getElementById('map-inactive-btn');
+  if(btn) {
+    btn.style.color = mapShowInactive ? 'var(--teal)' : '';
+    btn.style.fontWeight = mapShowInactive ? '700' : '';
+  }
+  renderMarkers();
+}
+
 function toggleMapType(){mapType=mapType==='hybrid'?'roadmap':'hybrid';map.setMapTypeId(mapType);document.querySelector('.map-type-btn').textContent=mapType==='hybrid'?'🛰️ לוויין':'🗺️ מפה';}
 function locateMe(){if(!navigator.geolocation){showToast('GPS לא זמין');return;}navigator.geolocation.getCurrentPosition(p=>{map.panTo({lat:p.coords.latitude,lng:p.coords.longitude});map.setZoom(17);updateLocationDot(p);},()=>showToast('לא ניתן לקבל מיקום'));}
-function renderMarkers(){Object.values(trapMarkers).forEach(m=>m.setMap(null));trapMarkers={};traps.forEach(addMarker);}
+function renderMarkers(){Object.values(trapMarkers).forEach(m=>m.setMap(null));trapMarkers={};traps.forEach(t=>{if(t.active===false&&!mapShowInactive)return;addMarker(t);});}
 
 // ── Location dot (blue, like Google Maps) ──
 let locationDot=null, locationCircle=null;
@@ -627,14 +660,31 @@ document.addEventListener('click',e=>{
   }
 });
 
+
+function setTrapStatusFilter(status) {
+  trapFilterStatus = status;
+  ['all','active','inactive'].forEach(s => {
+    const btn = document.getElementById('fsb-'+s);
+    if(!btn) return;
+    const sel = s === status;
+    btn.style.background = sel ? (s==='inactive'?'rgba(69,71,74,0.4)':'var(--teal)') : 'var(--input-bg)';
+    btn.style.color = sel ? 'white' : '';
+    btn.style.fontWeight = sel ? '700' : '';
+    btn.style.borderColor = sel ? (s==='inactive'?'rgba(69,71,74,0.4)':'var(--teal)') : 'var(--border)';
+  });
+  applyTrapFilter();
+}
+
 function applyTrapFilter(){
   const el=document.getElementById('traps-list');
   const fab='<div class="fab-inline"><button class="fab" onclick="openTrapForm(null)">+</button></div>';
-  const filtered=traps.filter(t=>
-    (!trapSel.pest.size||trapSel.pest.has(t.insectName))&&
-    (!trapSel.crop.size||trapSel.crop.has(t.crop))&&
-    (!trapSel.plot.size||trapSel.plot.has(t.plot))
-  );
+  const filtered=traps.filter(t=>{
+    if(trapFilterStatus==='active' && t.active===false) return false;
+    if(trapFilterStatus==='inactive' && t.active!==false) return false;
+    return (!trapSel.pest.size||trapSel.pest.has(t.insectName))&&
+           (!trapSel.crop.size||trapSel.crop.has(t.crop))&&
+           (!trapSel.plot.size||trapSel.plot.has(t.plot));
+  });
   const countEl=document.getElementById('trap-count');
   if(countEl) countEl.textContent='מציג '+filtered.length+' מתוך '+traps.length;
   if(!filtered.length){
@@ -644,7 +694,8 @@ function applyTrapFilter(){
   el.innerHTML=filtered.map(t=>{
     const ins=insects.find(i=>i.id===t.insectId);
     const col=ins?.color||'#8B1A1A';
-    return `<div class="card" onclick="openInspection('${t.id}')" style="border-right-color:${col}"><div class="cdot" style="background:${col}"></div><div class="cb"><div class="ct">${ins?.name||'מזיק לא ידוע'}${t.pheromoneDate?' <span style="font-size:12px;font-weight:400;color:rgba(69,71,74,0.65);">🧪 '+fd(t.pheromoneDate)+'</span>':''}</div><div class="cs">${t.plot||'—'}${t.trapNum?' | מלכודת: '+t.trapNum:''}</div></div><div class="ca"><button class="ia" onclick="event.stopPropagation();openTrapForm('${t.id}')">✏️</button></div></div>`;
+    const isInactive = t.active === false;
+    return `<div class="card" onclick="openInspection('${t.id}')" style="border-right-color:${col};opacity:${isInactive?0.5:1}"><div class="cdot" style="background:${col}"></div><div class="cb"><div class="ct">${ins?.name||'מזיק לא ידוע'}${t.pheromoneDate?' <span style="font-size:12px;font-weight:400;color:rgba(69,71,74,0.65);">🧪 '+fd(t.pheromoneDate)+'</span>':''}</div><div class="cs">${t.plot||'—'}${t.trapNum?' | מלכודת: '+t.trapNum:''}${isInactive?' · <span style="color:var(--text-muted)">לא פעילה</span>':''}</div></div><div class="ca" style="display:flex;flex-direction:column;gap:6px;align-items:center;"><button class="trap-toggle ${isInactive?'':'on'}" onclick="event.stopPropagation();toggleTrapActive('${t.id}',${isInactive})" title="${isInactive?'הפעל':'כבה'}"></button><button class="ia" onclick="event.stopPropagation();openTrapForm('${t.id}')">✏️</button></div></div>`;
   }).join('')+fab;
 }
 
@@ -708,6 +759,30 @@ async function saveInspection(){const trap=traps.find(t=>t.id===curTrapId);const
   }
   curInspectionId=null;if(phR&&phD){await db.collection('traps').doc(curTrapId).update({pheromoneDate:phD});await loadTraps();renderMarkers();}showToast('הסקר נשמר');navTo('map');}catch(e){showToast('שגיאה: '+e.message);}}
 function prepExport(){const now=new Date(),from=new Date(now.getFullYear(),now.getMonth(),1);document.getElementById('ex-from').value=di(from);document.getElementById('ex-to').value=di(now);const sel=document.getElementById('ex-ins');sel.innerHTML='<option value="">כל המזיקים</option>'+insects.map(i=>`<option value="${i.id}">${i.name}</option>`).join('');}
+
+async function toggleTrapActive(trapId, currentlyInactive) {
+  try {
+    await db.collection('traps').doc(trapId).update({active: currentlyInactive}); // flip
+    await loadTraps();
+    renderTraps();
+    renderMarkers();
+  } catch(e) { showToast('שגיאה: '+e.message); }
+}
+
+async function setAllTrapsActive(active) {
+  if(!traps.length) return;
+  showToast((active?'מפעיל':'מכבה')+' את כל המלכודות...');
+  try {
+    const batch = db.batch();
+    traps.forEach(t => batch.update(db.collection('traps').doc(t.id), {active}));
+    await batch.commit();
+    await loadTraps();
+    renderTraps();
+    renderMarkers();
+    showToast((active?'הופעלו':'כובו')+' '+traps.length+' מלכודות');
+  } catch(e) { showToast('שגיאה: '+e.message); }
+}
+
 async function exportCSV(){
   const from=document.getElementById('ex-from').value,
         to=document.getElementById('ex-to').value,
