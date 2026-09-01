@@ -492,7 +492,7 @@ async function openTrapBubble(trapId, marker) {
       <div style="font-size:11px;color:#666;margin-bottom:4px;">${trapLabel}</div>
       <div style="font-size:11px;color:#444;margin-bottom:${lastInspComment?'4px':'10px'};">תאריך סקר אחרון: <strong>${lastInspLabel}</strong></div>
       ${lastInspComment?`<div style="font-size:11px;color:#666;margin-bottom:10px;font-style:italic;">${lastInspComment}</div>`:''}
-      <div style="display:flex;gap:8px;margin-bottom:6px;">
+      <div style="display:flex;gap:8px;">
         <button onclick="closeBubbleAndDo('new','${trapId}')"
           style="flex:1;padding:7px 6px;background:#89000a;color:white;border:none;border-radius:7px;font-family:Arial;font-size:12px;font-weight:600;cursor:pointer;">
           ✚ סקר חדש
@@ -502,10 +502,7 @@ async function openTrapBubble(trapId, marker) {
           ✏️ דיווח אחרון
         </button>
       </div>
-      <button onclick="toggleTrapActiveFromMap('${trapId}')"
-        style="width:100%;padding:7px;background:${isInactive?'white':'rgba(69,71,74,0.07)'};color:${isInactive?'var(--teal)':'#555'};border:1.5px solid ${isInactive?'var(--teal)':'#ccc'};border-radius:7px;font-family:Arial;font-size:12px;font-weight:600;cursor:pointer;">
-        ${isInactive ? '✓ הפעל מלכודת' : '✕ כבה מלכודת'}
-      </button>
+
     </div>`,
     disableAutoPan: false
   });
@@ -585,7 +582,7 @@ function updateTopBar(v){
 }
 function goBack(){navTo(BACK[curView]||'map');}
 async function loadInsects(){const s=await db.collection('insects').orderBy('createdAt').get();insects=s.docs.map(d=>({id:d.id,...d.data()}));}
-function renderInsects(){const el=document.getElementById('insects-list');const fab='<div class="fab-inline"><button class="fab" onclick="openInsectForm(null)">+</button></div>';if(!insects.length){el.innerHTML='<div class="empty"><div class="eico">🐛</div><p>אין מזיקים מוגדרים.<br>לחץ + להוספה.</p></div>'+fab;return;}el.innerHTML=insects.map(i=>`<div class="card" onclick="openInsectForm('${i.id}')" style="border-right-color:${i.color}"><div class="cdot" style="background:${i.color}"></div><div class="cb"><div class="ct">${i.name}</div><div class="cs">${i.fields.map(f=>f.label).join(' • ')}</div></div><div class="ca"><button class="ia" onclick="event.stopPropagation();openInsectForm('${i.id}')">✏️</button></div></div>`).join('')+fab;}
+function renderInsects(){const el=document.getElementById('insects-list');const fab='<div class="fab-inline"><button class="fab" onclick="openInsectForm(null)">+</button></div>';if(!insects.length){el.innerHTML='<div class="empty"><div class="eico">🐛</div><p>אין מזיקים מוגדרים.<br>לחץ + להוספה.</p></div>'+fab;return;}el.innerHTML=insects.map(i=>`<div class="card" onclick="openInsectForm('${i.id}')" style="border-right-color:${i.color}"><div class="cdot" style="background:${i.color}"></div><div class="cb"><div class="ct">${i.name}</div><div class="cs">${i.fields.map(f=>f.label).join(' • ')}</div>${i.savedBy?`<div style="font-size:10px;color:var(--text-muted);margin-top:1px;">${i.savedBy.split('@')[0]}</div>`:''}</div><div class="ca"><button class="ia" onclick="event.stopPropagation();openInsectForm('${i.id}')">✏️</button></div></div>`).join('')+fab;}
 function openInsectForm(id){selColor='#c0392b';dynFields=[];document.getElementById('if-id').value=id||'';document.getElementById('if-name').value='';document.getElementById('if-del-wrap').style.display=id?'block':'none';if(id){const i=insects.find(x=>x.id===id);if(i){document.getElementById('if-name').value=i.name;selColor=i.color;dynFields=i.fields.map(f=>({...f}));}}else dynFields.push({label:''});renderColorRow();renderDynF();showV('insect-form');updateTopBar('insect-form');}
 function renderColorRow(){document.getElementById('color-row').innerHTML=COLORS.map(c=>`<div class="copt ${c===selColor?'sel':''}" style="background:${c}" onclick="pickCol('${c}',this)"></div>`).join('');}
 function pickCol(c,el){selColor=c;document.querySelectorAll('.copt').forEach(o=>o.classList.remove('sel'));el.classList.add('sel');}
